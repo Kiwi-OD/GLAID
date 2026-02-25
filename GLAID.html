@@ -1,0 +1,2644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLAID — Glucose & Insulin AI Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: #1f2d45;
+    --teal: #00d4b1;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --low: #ef4444;
+    --high: #f59e0b;
+    --target: #10b981;
+    --hypo: #f97316;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: linear-gradient(rgba(0,212,177,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,212,177,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 1600px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    padding: 20px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .header-inner { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; color: var(--teal); letter-spacing: -0.5px; }
+  .logo .ai {
+    background: linear-gradient(135deg, #a855f7, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-style: italic;
+    letter-spacing: -1px;
+  }
+  .logo span { color: var(--text); }
+  .file-drop-zone {
+    flex: 1;
+    min-width: 280px;
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .file-drop-zone:hover { border-color: var(--teal); background: rgba(0,212,177,0.04); }
+  .file-drop-zone.loaded { border-color: var(--teal); border-style: solid; background: rgba(0,212,177,0.06); }
+  .file-drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .file-icon { font-size: 1.4rem; }
+  .file-text { font-size: 0.78rem; }
+  .file-text strong { display: block; color: var(--text); }
+  .file-text small { color: var(--muted); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .ctrl-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ctrl-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+  .btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--teal); color: var(--teal); }
+  .btn.active { background: var(--teal); border-color: var(--teal); color: var(--bg); font-weight: 500; }
+  .date-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    outline: none;
+  }
+  .date-input:focus { border-color: var(--teal); }
+  .dia-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--teal);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+  }
+  .divider { width: 1px; height: 28px; background: var(--border); }
+
+  /* Chart area */
+  .chart-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+    min-height: 420px;
+  }
+  .chart-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-left: auto; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend-line { width: 20px; height: 2px; border-radius: 1px; }
+  canvas { max-height: 380px; }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+  }
+  .stat-card:hover { border-color: var(--teal); }
+  .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 800; }
+  .stat-unit { font-size: 0.7rem; color: var(--muted); margin-left: 3px; }
+  .stat-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+  .green { color: var(--target); }
+  .red { color: var(--low); }
+  .amber { color: var(--amber); }
+  .teal { color: var(--teal); }
+  .blue { color: var(--blue); }
+
+  /* Time-of-day curve */
+  .tod-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .tod-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tod-title { font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .tod-legend { display: flex; gap: 14px; margin-left: auto; flex-wrap: wrap; }
+  .tod-leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--muted); }
+  .tod-leg-band { display: inline-block; width: 16px; height: 10px; border-radius: 2px; }
+  .tod-leg-line { display: inline-block; width: 18px; height: 2px; border-radius: 1px; }
+
+  /* AI Summary */
+  .summary-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+  .summary-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .summary-title { font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .ai-badge {
+    background: linear-gradient(135deg, #a855f7, #3b82f6);
+    color: white;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .btn-analyze {
+    margin-left: auto;
+    background: linear-gradient(135deg, #a855f7, #3b82f6);
+    border: none;
+    color: white;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-analyze:hover { opacity: 0.85; }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+  .summary-content {
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: var(--text);
+    min-height: 80px;
+  }
+  .summary-content .placeholder { color: var(--muted); font-style: italic; }
+  .summary-content h4 { font-family: 'Syne', sans-serif; color: var(--teal); font-size: 0.85rem; margin: 12px 0 4px; }
+  .summary-content ul { padding-left: 16px; }
+  .summary-content li { margin-bottom: 4px; }
+  .thinking { display: inline-flex; gap: 4px; align-items: center; }
+  .thinking span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--purple);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,80%,100%{opacity:0.3;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: var(--muted);
+    gap: 12px;
+  }
+  .empty-state .icon { font-size: 3rem; opacity: 0.4; }
+  .empty-state p { font-size: 0.85rem; }
+
+  /* Tooltip custom */
+  .bolus-tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--teal);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+    max-width: 200px;
+  }
+  .bolus-tooltip strong { color: var(--teal); display: block; margin-bottom: 4px; }
+
+  /* Provider panel */
+  .provider-panel {
+    background: rgba(168,85,247,0.05);
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 10px; margin-bottom: 20px; overflow: hidden;
+  }
+  .provider-tabs {
+    display: flex; border-bottom: 1px solid rgba(168,85,247,0.2);
+  }
+  .ptab {
+    flex: 1; background: none; border: none; border-right: 1px solid rgba(168,85,247,0.15);
+    color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 9px 14px; cursor: pointer; transition: all 0.15s; text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .ptab:last-child { border-right: none; }
+  .ptab:hover { background: rgba(168,85,247,0.08); color: var(--text); }
+  .ptab.active { background: rgba(168,85,247,0.12); color: var(--purple); font-weight: 500; }
+  .ptab .ptab-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+  .pconfig {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+  .api-key-label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.08em; }
+  .api-key-input {
+    flex: 1; min-width: 0;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 6px 10px; border-radius: 6px; outline: none;
+  }
+  .api-key-input:focus { border-color: var(--purple); }
+  .api-key-hint { font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+  .local-note {
+    font-size: 0.68rem; color: var(--muted); padding: 0 16px 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .local-note .warn { color: var(--amber); }
+  /* Model info bar */
+  .model-info-bar {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 10px 16px; margin-top: 14px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 0.72rem; color: var(--muted);
+  }
+  .model-info-bar .chip {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .model-info-bar .chip-label { color: var(--muted); }
+  .model-info-bar .chip-val { color: var(--text); font-weight: 500; }
+  .model-info-bar .chip-val.teal { color: var(--teal); }
+  .model-info-bar .chip-val.purple { color: var(--purple); }
+
+  /* Chat section */
+  .chat-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 30px; overflow: hidden;
+  }
+  .chat-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .chat-title { font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .chat-scope { font-size: 0.7rem; color: var(--muted); margin-left: 4px; }
+  .chat-messages {
+    height: 340px; overflow-y: auto; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 12px;
+    scroll-behavior: smooth;
+  }
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .msg { display: flex; gap: 10px; align-items: flex-start; max-width: 90%; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg-bubble {
+    padding: 9px 13px; border-radius: 10px; font-size: 0.8rem; line-height: 1.6;
+  }
+  .msg.user .msg-bubble { background: rgba(0,212,177,0.12); border: 1px solid rgba(0,212,177,0.2); color: var(--text); border-radius: 10px 2px 10px 10px; }
+  .msg.assistant .msg-bubble { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 2px 10px 10px 10px; }
+  .msg-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; margin-top: 2px; }
+  .msg.user .msg-avatar { background: rgba(0,212,177,0.15); color: var(--teal); }
+  .msg.assistant .msg-avatar { background: linear-gradient(135deg,#a855f7,#3b82f6); color: white; }
+  .msg-bubble h4 { font-family: 'Syne', sans-serif; color: var(--teal); font-size: 0.8rem; margin: 8px 0 3px; }
+  .msg-bubble strong { color: var(--text); }
+  .msg-bubble a { color: var(--blue); text-decoration: none; }
+  .msg-bubble a:hover { text-decoration: underline; }
+  .msg-bubble .search-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.25); border-radius: 4px; padding: 2px 7px; font-size: 0.68rem; color: var(--blue); margin-bottom: 6px; }
+  .chat-input-row {
+    display: flex; gap: 8px; padding: 12px 16px;
+    border-top: 1px solid var(--border); background: var(--surface);
+  }
+  .chat-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    padding: 9px 14px; border-radius: 8px; outline: none; resize: none; height: 40px;
+    transition: border-color 0.15s;
+  }
+  .chat-input:focus { border-color: var(--teal); }
+  .chat-send {
+    background: var(--teal); border: none; color: var(--bg);
+    font-family: 'DM Mono', monospace; font-size: 0.78rem; font-weight: 500;
+    padding: 0 18px; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .chat-send:hover { opacity: 0.85; }
+  .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+  .chat-hint { padding: 0 18px 10px; font-size: 0.68rem; color: var(--muted); }
+
+  @media (max-width: 768px) {
+    .controls { flex-direction: column; align-items: flex-start; }
+    .divider { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="header-inner">
+      <div class="logo">GL<span class="ai">AI</span>D</div>
+      <div class="file-drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".zip" onchange="handleFile(this.files[0])">
+        <div class="file-icon">📂</div>
+        <div class="file-text">
+          <strong id="fileLabel">Select glooko_export.zip</strong>
+          <small id="fileInfo">Click or drag &amp; drop your export file</small>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Range</span>
+      <div class="btn-group" id="presetBtns">
+        <button class="btn" onclick="setPreset(1)">1D</button>
+        <button class="btn" onclick="setPreset(2)">2D</button>
+        <button class="btn" onclick="setPreset(3)">3D</button>
+        <button class="btn" onclick="setPreset(7)">1W</button>
+        <button class="btn" onclick="setPreset(14)">2W</button>
+        <button class="btn" onclick="setPreset(28)">4W</button>
+        <button class="btn" onclick="setPreset(0)">All</button>
+        <button class="btn" id="resetZoomBtn" onclick="resetZoom()" title="Reset zoom to full selected date range" style="display:none;border-color:var(--teal);color:var(--teal)">↺ Reset</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">From</span>
+      <input type="date" class="date-input" id="dateFrom" onchange="onDateChange()">
+      <span class="ctrl-label">To</span>
+      <input type="date" class="date-input" id="dateTo" onchange="onDateChange()">
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Target Range</span>
+      <select class="dia-select" id="rangeSelect" onchange="onRangeChange()">
+        <option value="3.9-7.8" selected>3.9 – 7.8 mmol/L</option>
+        <option value="4.0-10.0">4.0 – 10.0 mmol/L</option>
+      </select>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">DIA</span>
+      <select class="dia-select" id="diaSelect" onchange="onDIAChange()">
+        <option value="3">3h</option>
+        <option value="3.5">3.5h</option>
+        <option value="4">4h</option>
+        <option value="4.5">4.5h</option>
+        <option value="5" selected>5h</option>
+        <option value="5.5">5.5h</option>
+        <option value="6">6h</option>
+      </select>
+      <span class="ctrl-label" style="margin-left:4px">IOB</span>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Age:</span>
+      <input type="number" class="date-input" id="userAge" min="1" max="120" placeholder="—" style="width:52px;text-align:center">
+      <span class="ctrl-label">yr</span>
+	  <div class="divider"></div>
+      <span class="ctrl-label" style="margin-left:6px">Weight:</span>
+      <input type="number" class="date-input" id="userWeight" min="10" max="300" placeholder="—" style="width:58px;text-align:center">
+      <span class="ctrl-label">kg</span>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label" style="color:#f97316">🍬 Hypo Tx:</span>
+      <input type="number" class="date-input" id="hypoCarbs" min="1" max="100" placeholder="-" onchange="if(dataLoaded){renderChart();updateStats();}" style="width:52px;text-align:center;border-color:rgba(249,115,22,0.35);color:#f97316">
+      <span class="ctrl-label">g carbs</span>
+    </div>
+  </div>
+
+  <!-- Main chart -->
+  <div class="chart-wrap">
+    <div class="chart-title">
+      Glucose & Insulin
+      <span style="font-size:0.68rem;color:var(--muted);font-weight:400;margin-left:4px">scroll to zoom · drag to pan</span>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--teal)"></div> CGM (mmol/L)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--amber)"></div> Basal Rate (U/h)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--purple);opacity:0.6"></div> IOB (U)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Bolus</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Correction</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--hypo)"></div> Hypo Tx</div>
+      </div>
+    </div>
+    <div id="chartContainer">
+      <div class="empty-state">
+        <div class="icon">📊</div>
+        <p>Load a Glooko export ZIP to see your data</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid" style="display:none">
+    <div class="stat-card">
+      <div class="stat-label">Average Glucose</div>
+      <div class="stat-value teal" id="statAvg">—<span class="stat-unit">mmol/L</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Time in Range</div>
+      <div class="stat-value green" id="statTIR">—<span class="stat-unit">%</span></div>
+      <div class="stat-sub">3.9 – 10.0 mmol/L</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Time Below Range</div>
+      <div class="stat-value red" id="statLow">—<span class="stat-unit">%</span></div>
+      <div class="stat-sub">&lt; 3.9 mmol/L</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Time Above Range</div>
+      <div class="stat-value amber" id="statHigh">—<span class="stat-unit">%</span></div>
+      <div class="stat-sub">&gt; 10.0 mmol/L</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">GMI (est. HbA1c)</div>
+      <div class="stat-value blue" id="statGMI">—<span class="stat-unit">mmol/mol</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Glucose Variability</div>
+      <div class="stat-value" id="statCV">—<span class="stat-unit">%CV</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Daily Insulin</div>
+      <div class="stat-value teal" id="statTDI">—<span class="stat-unit">U/day</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Basal / Bolus</div>
+      <div class="stat-value" id="statBasalBolus">—</div>
+      <div class="stat-sub" id="statBasalBolusSub">of total daily insulin</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Carbs / Day</div>
+      <div class="stat-value blue" id="statCarbs">—<span class="stat-unit">g</span></div>
+      <div class="stat-sub" id="statCarbsSub">from bolus records</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Bolus Doses</div>
+      <div class="stat-value" id="statBoluses">—</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(249,115,22,0.3)">
+      <div class="stat-label" style="color:#f97316">Hypo Treatments</div>
+      <div class="stat-value" id="statHypos" style="color:#f97316">—</div>
+      <div class="stat-sub" id="statHyposSub">0.05U boluses detected</div>
+    </div>
+  </div>
+
+  <!-- Time of Day -->
+  <div class="tod-section" id="todSection" style="display:none">
+    <div class="tod-header">
+      <div class="tod-title">Glucose by Hour of Day</div>
+      <div class="tod-legend">
+        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(0,212,177,0.12);border:1px solid rgba(0,212,177,0.2)"></span>5–95th %ile</span>
+        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(0,212,177,0.25);border:1px solid rgba(0,212,177,0.35)"></span>25–75th %ile</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal)"></span>Median</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:#f59e0b"></span>Avg Basal (U/h)</span>
+      </div>
+    </div>
+    <div style="position:relative;display:block">
+      <canvas id="todCanvas" height="320" style="width:100%;display:block"></canvas>
+      <canvas id="todOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+    </div>
+  </div>
+
+  <!-- Bolus / Carbs / Hypo by Hour of Day -->
+  <div class="tod-section" id="hodSection" style="display:none">
+    <div class="tod-header">
+      <div class="tod-title">Insulin, Carbs &amp; Hypos by Hour of Day</div>
+      <div class="tod-legend">
+        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(59,130,246,0.35);border:1px solid rgba(59,130,246,0.5)"></span>Avg Carbs (g)</span>
+        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(168,85,247,0.3);border:1px solid rgba(168,85,247,0.5)"></span>Avg Bolus (U)</span>
+        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(249,115,22,0.35);border:1px solid rgba(249,115,22,0.5)"></span>Hypo Treatments</span>
+      </div>
+    </div>
+    <div style="position:relative;display:block">
+      <canvas id="hodCanvas" height="240" style="width:100%;display:block"></canvas>
+      <canvas id="hodOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+    </div>
+    <div id="hodTooltip" class="bolus-tooltip" style="max-width:220px"></div>
+  </div>
+
+  <!-- Provider Panel -->
+  <div class="provider-panel">
+    <div class="provider-tabs">
+      <button class="ptab active" id="ptab-anthropic" onclick="selectProvider('anthropic')">
+        <span class="ptab-dot"></span>Anthropic API
+      </button>
+      <button class="ptab" id="ptab-ollama" onclick="selectProvider('ollama')">
+        <span class="ptab-dot"></span>Ollama
+      </button>
+      <button class="ptab" id="ptab-llamacpp" onclick="selectProvider('llamacpp')">
+        <span class="ptab-dot"></span>llama.cpp
+      </button>
+      <button class="ptab" id="ptab-openclaw" onclick="selectProvider('openclaw')">
+        <span class="ptab-dot"></span>🦞 OpenClaw
+      </button>
+    </div>
+
+    <!-- Anthropic -->
+    <div class="pconfig" id="pconfig-anthropic">
+      <span class="api-key-label">🔑 API Key</span>
+      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="sk-ant-… (required when running locally)">
+      <span class="api-key-hint">Get yours at <a href="https://console.anthropic.com" target="_blank" style="color:var(--purple)">console.anthropic.com</a></span>
+    </div>
+
+    <!-- Ollama -->
+    <div class="pconfig" id="pconfig-ollama" style="display:none">
+      <span class="api-key-label">Endpoint</span>
+      <input type="text" class="api-key-input" id="ollamaEndpoint" value="http://localhost:11434" style="max-width:230px">
+      <span class="api-key-label">Model</span>
+      <input type="text" class="api-key-input" id="ollamaModel" placeholder="llama3.2" style="max-width:160px">
+      <span class="api-key-hint" style="color:var(--teal)">ollama serve</span>
+    </div>
+    <div class="local-note" id="ollama-note" style="display:none">
+      <span class="warn">⚠</span> Browser requests to localhost may be blocked by CORS. Start Ollama with <code style="color:var(--teal)">OLLAMA_ORIGINS="*" ollama serve</code> to allow browser access. Web search is not available with local models.
+    </div>
+
+    <!-- llama.cpp -->
+    <div class="pconfig" id="pconfig-llamacpp" style="display:none">
+      <span class="api-key-label">Endpoint</span>
+      <input type="text" class="api-key-input" id="llamacppEndpoint" value="http://localhost:8080" style="max-width:230px">
+      <span class="api-key-label">Model name</span>
+      <input type="text" class="api-key-input" id="llamacppModel" placeholder="optional label" style="max-width:160px">
+      <span class="api-key-hint" style="color:var(--teal)">llama-server -m model.gguf --port 8080</span>
+    </div>
+    <div class="local-note" id="llamacpp-note" style="display:none">
+      <span class="warn">⚠</span> Start with <code style="color:var(--teal)">--cors-allow-origins "*"</code> flag to allow browser access. Web search is not available with local models.
+    </div>
+
+    <!-- OpenClaw -->
+    <div class="pconfig" id="pconfig-openclaw" style="display:none">
+      <span class="api-key-label">Gateway</span>
+      <input type="text" class="api-key-input" id="openclawEndpoint" value="http://localhost:18789" style="max-width:220px">
+      <span class="api-key-label">Model</span>
+      <input type="text" class="api-key-input" id="openclawModel" placeholder="anthropic/claude-opus-4-6" style="max-width:210px">
+      <span class="api-key-label">Token</span>
+      <input type="password" class="api-key-input" id="openclawToken" placeholder="optional gateway token" style="max-width:180px">
+      <button class="btn" onclick="testOpenClaw()" style="margin-left:6px">Test</button>
+    </div>
+    <div class="local-note" id="openclaw-note" style="display:none">
+      <span class="warn">⚠</span> Gateway must be running: <code style="color:var(--teal)">openclaw gateway --port 18789</code>.
+      The browser requires CORS headers — if you get "Failed to fetch", the gateway is either not running or blocking cross-origin requests.
+      Try adding a <code style="color:var(--teal)">--cors</code> flag or equivalent to the start command.
+      <span id="openclawTestResult" style="margin-left:8px;font-weight:600"></span>
+    </div>
+  </div>
+
+  <!-- AI Summary -->
+  <div class="summary-section">
+    <div class="summary-header">
+      <div class="summary-title">Analysis & Recommendations</div>
+      <div class="ai-badge">AI</div>
+      <button class="btn-analyze" id="analyzeBtn" onclick="generateSummary()" disabled>Analyse Period</button>
+    </div>
+    <div class="summary-content" id="summaryContent">
+      <span class="placeholder">Load data and press "Analyse Period" to receive a personalised summary with pattern insights and tuning suggestions.</span>
+    </div>
+    <!-- Model info bar -->
+    <div class="model-info-bar" id="modelInfoBar" style="display:none">
+      <div class="chip"><span class="chip-label">Model</span><span class="chip-val teal" id="infoModel">—</span></div>
+      <div class="chip"><span class="chip-label">Input</span><span class="chip-val" id="infoInputTok">—</span><span class="chip-label">tok</span></div>
+      <div class="chip"><span class="chip-label">Output</span><span class="chip-val" id="infoOutputTok">—</span><span class="chip-label">tok</span></div>
+      <div class="chip"><span class="chip-label">Speed</span><span class="chip-val teal" id="infoTps">—</span><span class="chip-label">tok/s</span></div>
+      <div class="chip"><span class="chip-label">Cost</span><span class="chip-val purple" id="infoCost">—</span><span class="chip-label" id="infoCostUnit">SEK</span></div>
+      <div class="chip" style="margin-left:auto"><span class="chip-label" id="infoPriceNote" style="font-size:0.65rem">~10.50 SEK/USD · Sonnet 4: $3/$15 per MTok in/out</span></div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-section">
+    <div class="chat-header">
+      <div class="chat-title">Data Chat</div>
+      <div class="ai-badge">AI + Search</div>
+      <span class="chat-scope">Ask questions about your glucose data · searches scientific literature when needed</span>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="msg assistant">
+        <div class="msg-avatar">GL</div>
+        <div class="msg-bubble">Load your data and run an analysis first, then ask me anything about your glucose patterns, insulin settings, or the science behind your results. I can search for relevant studies to back up my answers.</div>
+      </div>
+    </div>
+    <div class="chat-hint">e.g. "Why is my glucose high at night?" · "Find studies on dawn phenomenon in closed-loop systems" · "What does my CV suggest?"</div>
+    <div class="chat-input-row">
+      <textarea class="chat-input" id="chatInput" placeholder="Ask about your data…" rows="1" onkeydown="chatKeydown(event)"></textarea>
+      <button class="chat-send" id="chatSendBtn" onclick="chatSend()" disabled>Send</button>
+    </div>
+  </div>
+</div>
+
+<div class="bolus-tooltip" id="bolusTooltip"></div>
+<div class="bolus-tooltip" id="mainChartTooltip" style="max-width:260px;line-height:1.6"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let rawCGM = [], rawBasal = [], rawBolus = [];
+let filteredCGM = [], filteredBasal = [], filteredBolus = [];
+let mainChart = null;
+let diaHours = 5;
+let targetRange = { low: 3.9, high: 7.8 };
+let dataLoaded = false;
+let chatHistory = [];
+let lastAnalysisText = '';
+let currentProvider = 'anthropic';
+// Zoom/pan state
+let viewMin = null, viewMax = null;
+let isPanning = false, panStartX = 0, panStartMin = 0, panStartMax = 0;
+
+// Global pan-end handlers — registered once so they always reference the live canvas by ID
+function endPan() {
+  if (isPanning) {
+    isPanning = false;
+    const c = document.getElementById('mainCanvas');
+    if (c) c.style.cursor = 'crosshair';
+  }
+}
+window.addEventListener('mouseup', endPan);
+window.addEventListener('blur', endPan);     // mouse released outside browser window
+
+// Global pan-move handler — registered once, uses rawCGM for full-dataset bounds
+window.addEventListener('mousemove', (e) => {
+  if (!isPanning || !mainChart) return;
+  const xScale = mainChart.scales['x'];
+  if (!xScale || xScale.width === 0) return;
+  const pxPerMs = xScale.width / (panStartMax - panStartMin);
+  const deltaMs = -(e.clientX - panStartX) / pxPerMs;
+  const range = panStartMax - panStartMin;
+  // Clamp to full raw dataset so panning works regardless of the filtered date range
+  const dataMin = rawCGM.length ? rawCGM[0].ts.getTime() : 0;
+  const dataMax = rawCGM.length ? rawCGM[rawCGM.length - 1].ts.getTime() : 0;
+  let newMin = panStartMin + deltaMs;
+  let newMax = panStartMax + deltaMs;
+  if (newMin < dataMin) { newMin = dataMin; newMax = dataMin + range; }
+  if (newMax > dataMax) { newMax = dataMax; newMin = dataMax - range; }
+  applyChartView(newMin, newMax);
+});
+
+// ─── File Loading ─────────────────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!file) return;
+  document.getElementById('fileLabel').textContent = file.name;
+  document.getElementById('fileInfo').textContent = 'Loading…';
+  document.getElementById('dropZone').classList.add('loaded');
+
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const findFile = (pattern) => {
+      const keys = Object.keys(zip.files);
+      return keys.find(k => k.toLowerCase().includes(pattern.toLowerCase()));
+    };
+
+    const cgmKey = findFile('cgm_data');
+    const basalKey = findFile('basal_data');
+    const bolusKey = findFile('bolus_data');
+
+    if (!cgmKey || !basalKey || !bolusKey) {
+      document.getElementById('fileInfo').textContent = '⚠ Could not find required CSV files';
+      return;
+    }
+
+    const [cgmText, basalText, bolusText] = await Promise.all([
+      zip.files[cgmKey].async('string'),
+      zip.files[basalKey].async('string'),
+      zip.files[bolusKey].async('string'),
+    ]);
+
+    rawCGM = parseCSV(cgmText, parseCGMRow);
+    rawBasal = parseCSV(basalText, parseBasalRow);
+    rawBolus = parseCSV(bolusText, parseBolusRow);
+
+    rawCGM.sort((a,b) => a.ts - b.ts);
+    rawBasal.sort((a,b) => a.ts - b.ts);
+    rawBolus.sort((a,b) => a.ts - b.ts);
+
+    document.getElementById('fileInfo').textContent = `✓ ${rawCGM.length} CGM · ${rawBasal.length} basal · ${rawBolus.length} bolus records`;
+    dataLoaded = true;
+    document.getElementById('analyzeBtn').disabled = false;
+    document.getElementById('chatSendBtn').disabled = false;
+
+    // Default to 2 weeks
+    setPreset(14);
+  } catch(e) {
+    console.error(e);
+    document.getElementById('fileInfo').textContent = '⚠ Error reading file: ' + e.message;
+  }
+}
+
+// ─── CSV Parsing ──────────────────────────────────────────────────────────────
+function parseCSV(text, rowParser) {
+  const lines = text.replace(/^\uFEFF/, '').split('\n').filter(l => l.trim());
+  // Skip header row 1 (name/date range), find actual header
+  let headerIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('Timestamp')) { headerIdx = i; break; }
+  }
+  const headers = lines[headerIdx].split(',').map(h => h.trim());
+  const results = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const vals = splitCSVLine(lines[i]);
+    if (vals.length < 2) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (vals[idx] || '').trim(); });
+    const row = rowParser(obj);
+    if (row) results.push(row);
+  }
+  return results;
+}
+
+function splitCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (const ch of line) {
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+    else { current += ch; }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  const d = new Date(str.replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseCGMRow(obj) {
+  const ts = parseDate(obj['Timestamp']);
+  const glc = parseFloat(obj['CGM Glucose Value (mmol/l)'] || obj['CGM Glucose Value (mg/dl)'] || 0);
+  if (!ts || isNaN(glc) || glc <= 0) return null;
+  return { ts, glc };
+}
+
+function parseBasalRow(obj) {
+  const ts = parseDate(obj['Timestamp']);
+  const dur = parseFloat(obj['Duration (minutes)'] || 0);
+  const rate = parseFloat(obj['Rate'] || 0);
+  if (!ts) return null;
+  const units = dur / 60 * rate;
+  return { ts, dur, rate, units };
+}
+
+function parseBolusRow(obj) {
+  const ts = parseDate(obj['Timestamp']);
+  const carbs = parseFloat(obj['Carbs Input (g)'] || 0);
+  const insulin = parseFloat(obj['Insulin Delivered (U)'] || 0);
+  if (!ts) return null;
+  return { ts, carbs, insulin };
+}
+
+// ─── Date Filtering ───────────────────────────────────────────────────────────
+function setPreset(days) {
+  document.querySelectorAll('#presetBtns .btn:not(#resetZoomBtn)').forEach(b => b.classList.remove('active'));
+  document.getElementById('resetZoomBtn').style.display = 'none';
+  const labels = ['1D','2D','3D','1W','2W','4W','All'];
+  const vals = [1,2,3,7,14,28,0];
+  const idx = vals.indexOf(days);
+  if (idx >= 0) document.querySelectorAll('#presetBtns .btn:not(#resetZoomBtn)')[idx].classList.add('active');
+
+  if (!dataLoaded) return;
+  const allTimes = [...rawCGM, ...rawBasal, ...rawBolus].map(r => r.ts.getTime());
+  const maxTs = Math.max(...allTimes);
+  const maxDate = new Date(maxTs);
+
+  let minDate;
+  if (days === 0) {
+    minDate = new Date(Math.min(...allTimes));
+  } else {
+    minDate = new Date(maxTs - (days - 1) * 86400000);
+  }
+
+  document.getElementById('dateFrom').value = fmtDateInput(minDate);
+  document.getElementById('dateTo').value = fmtDateInput(maxDate);
+  applyFilter();
+}
+
+function fmtDateInput(d) {
+  return d.toISOString().slice(0,10);
+}
+
+function onDateChange() {
+  document.querySelectorAll('#presetBtns .btn').forEach(b => b.classList.remove('active'));
+  applyFilter();
+}
+
+function onDIAChange() {
+  diaHours = parseFloat(document.getElementById('diaSelect').value);
+  if (dataLoaded) renderChart();
+}
+
+function onRangeChange() {
+  const [low, high] = document.getElementById('rangeSelect').value.split('-').map(Number);
+  targetRange = { low, high };
+  if (dataLoaded) { renderChart(); updateStats(); }
+}
+
+function applyFilter() {
+  if (!dataLoaded) return;
+  const from = new Date(document.getElementById('dateFrom').value + 'T00:00:00');
+  const to = new Date(document.getElementById('dateTo').value + 'T23:59:59');
+  filteredCGM = rawCGM.filter(r => r.ts >= from && r.ts <= to);
+  filteredBasal = rawBasal.filter(r => r.ts >= from && r.ts <= to);
+  filteredBolus = rawBolus.filter(r => r.ts >= from && r.ts <= to);
+  viewMin = null; viewMax = null; // reset zoom to full filtered range
+  renderChart();
+  updateStats();
+}
+
+// ─── IOB Calculation ──────────────────────────────────────────────────────────
+// Bilinear insulin action curve
+function insulinActivity(t, dia) {
+  // t in hours since injection
+  if (t < 0 || t > dia) return 0;
+  const peak = dia * 0.35;
+  if (t <= peak) return t / peak;
+  return (dia - t) / (dia - peak);
+}
+
+function calcIOB(ts, bolusData, diaH) {
+  const diaMs = diaH * 3600000;
+  let iob = 0;
+  const t = ts.getTime();
+  for (const b of bolusData) {
+    const bts = b.ts.getTime();
+    const elapsedH = (t - bts) / 3600000;
+    if (elapsedH < 0 || elapsedH > diaH) continue;
+    // Fraction remaining = integral of activity from elapsed to end
+    const steps = 20;
+    let remaining = 0;
+    for (let s = 0; s < steps; s++) {
+      const ta = elapsedH + (s / steps) * (diaH - elapsedH);
+      remaining += insulinActivity(ta, diaH) / steps;
+    }
+    // Normalise by total integral
+    let total = 0;
+    for (let s = 0; s < steps; s++) {
+      const ta = (s / steps) * diaH;
+      total += insulinActivity(ta, diaH) / steps;
+    }
+    iob += b.insulin * (total > 0 ? remaining / total : 0);
+  }
+  return iob;
+}
+
+// ─── Zoom / Pan helpers ───────────────────────────────────────────────────────
+function getTickStepMs(rangeMs) {
+  const h = rangeMs / 3600000;
+  if (h <= 1)   return 15 * 60000;         // 15 min
+  if (h <= 3)   return 30 * 60000;         // 30 min
+  if (h <= 6)   return 3600000;            // 1 h
+  if (h <= 12)  return 2  * 3600000;       // 2 h
+  if (h <= 24)  return 4  * 3600000;       // 4 h
+  if (h <= 48)  return 6  * 3600000;       // 6 h
+  if (h <= 96)  return 12 * 3600000;       // 12 h
+  return 24 * 3600000;                      // 24 h
+}
+
+function fmtTick(ms, rangeMs) {
+  const d = new Date(ms);
+  const h = rangeMs / 3600000;
+  if (h > 72) {
+    if (d.getHours() === 0) return d.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+    if (h <= 96) return d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+    return null; // only show midnight labels when > 4 days
+  }
+  if (d.getHours() === 0 && d.getMinutes() === 0) {
+    return d.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function clearPresets() {
+  document.querySelectorAll('#presetBtns .btn:not(#resetZoomBtn)').forEach(b => b.classList.remove('active'));
+  document.getElementById('resetZoomBtn').style.display = 'inline-flex';
+}
+
+function resetZoom() {
+  if (!filteredCGM.length) return;
+  viewMin = filteredCGM[0].ts.getTime();
+  viewMax = filteredCGM[filteredCGM.length - 1].ts.getTime();
+  document.getElementById('resetZoomBtn').style.display = 'none';
+  applyChartView(viewMin, viewMax, true);
+}
+
+function applyChartView(newMin, newMax, fromPreset = false) {
+  if (!mainChart || !filteredCGM.length) return;
+  // Clamp to full raw dataset so panning works regardless of the active date filter
+  const dataMin = rawCGM.length ? rawCGM[0].ts.getTime() : filteredCGM[0].ts.getTime();
+  const dataMax = rawCGM.length ? rawCGM[rawCGM.length - 1].ts.getTime() : filteredCGM[filteredCGM.length - 1].ts.getTime();
+  const range = newMax - newMin;
+  newMin = Math.max(newMin, dataMin);
+  newMax = Math.min(newMax, dataMax);
+  // Re-apply range if clamped to avoid shrinking the window (panning, not zooming)
+  if (newMin === dataMin) newMax = Math.min(dataMax, dataMin + range);
+  if (newMax === dataMax) newMin = Math.max(dataMin, dataMax - range);
+  if (newMax - newMin < 10 * 60000) return; // min 10 min window
+  viewMin = newMin;
+  viewMax = newMax;
+
+  if (!fromPreset) clearPresets();
+
+  const step = getTickStepMs(newMax - newMin);
+  const rangeMs = newMax - newMin;
+
+  // Rebuild midnight-aligned ticks: start from 00:00 of the day containing newMin,
+  // then walk forward by step so ticks always fall on 00:00, 04:00, 08:00 etc.
+  mainChart.options.scales.x.min = newMin;
+  mainChart.options.scales.x.max = newMax;
+  mainChart.options.scales.x.afterBuildTicks = (axis) => {
+    const aligned = [];
+    const dayStart = new Date(newMin);
+    dayStart.setHours(0, 0, 0, 0);
+    let t = dayStart.getTime();
+    // advance by step until we reach the first tick >= newMin
+    while (t < newMin) t += step;
+    for (; t <= newMax; t += step) aligned.push({ value: t });
+    axis.ticks = aligned;
+  };
+  mainChart.options.scales.x.ticks.callback = (val) => fmtTick(val, rangeMs);
+
+  mainChart.update('none');
+  updateStats();
+}
+
+function setupZoomPan(canvas) {
+  canvas.style.cursor = 'crosshair';
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (!mainChart || !filteredCGM.length) return;
+    const xScale = mainChart.scales['x'];
+    const rect = canvas.getBoundingClientRect();
+    const mouseRatio = Math.max(0, Math.min(1,
+      (e.clientX - rect.left - xScale.left) / xScale.width));
+
+    const zoomFactor = e.deltaY > 0 ? 1.10 : 0.91;
+    const range = viewMax - viewMin;
+    const center = viewMin + mouseRatio * range;
+    applyChartView(center - (center - viewMin) * zoomFactor,
+                   center + (viewMax - center) * zoomFactor);
+  }, { passive: false });
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartMin = viewMin;
+    panStartMax = viewMax;
+    canvas.style.cursor = 'grabbing';
+  });
+
+  // Touch: single-finger pan, two-finger pinch zoom
+  let lastTouchDist = null, lastTouchMid = 0;
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isPanning = true;
+      panStartX = e.touches[0].clientX;
+      panStartMin = viewMin;
+      panStartMax = viewMax;
+      lastTouchDist = null;
+    } else if (e.touches.length === 2) {
+      isPanning = false;
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      lastTouchDist = Math.abs(dx);
+      lastTouchMid = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!mainChart) return;
+    if (e.touches.length === 1 && isPanning) {
+      const xScale = mainChart.scales['x'];
+      const pxPerMs = xScale.width / (panStartMax - panStartMin);
+      const deltaMs = -(e.touches[0].clientX - panStartX) / pxPerMs;
+      const range = panStartMax - panStartMin;
+      const dataMin = rawCGM.length ? rawCGM[0].ts.getTime() : 0;
+      const dataMax = rawCGM.length ? rawCGM[rawCGM.length - 1].ts.getTime() : 0;
+      let newMin = panStartMin + deltaMs;
+      let newMax = panStartMax + deltaMs;
+      if (newMin < dataMin) { newMin = dataMin; newMax = dataMin + range; }
+      if (newMax > dataMax) { newMax = dataMax; newMin = dataMax - range; }
+      applyChartView(newMin, newMax);
+    } else if (e.touches.length === 2 && lastTouchDist !== null) {
+      const xScale = mainChart.scales['x'];
+      const rect = canvas.getBoundingClientRect();
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dist = Math.abs(dx);
+      const mid = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const zoomFactor = lastTouchDist / dist;
+      const mouseRatio = Math.max(0, Math.min(1, (mid - rect.left - xScale.left) / xScale.width));
+      const range = viewMax - viewMin;
+      const center = viewMin + mouseRatio * range;
+      applyChartView(center - (center - viewMin) * zoomFactor,
+                     center + (viewMax - center) * zoomFactor);
+      lastTouchDist = dist;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => { isPanning = false; lastTouchDist = null; });
+}
+
+// ─── Chart Rendering ──────────────────────────────────────────────────────────
+function renderChart() {
+  const container = document.getElementById('chartContainer');
+
+  if (filteredCGM.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📉</div><p>No data in selected range</p></div>';
+    if (mainChart) { mainChart.destroy(); mainChart = null; }
+    return;
+  }
+
+  // Init view range if not set (e.g. after preset/filter change)
+  const dataMin = filteredCGM[0].ts.getTime();
+  const dataMax = filteredCGM[filteredCGM.length - 1].ts.getTime();
+  if (viewMin === null || viewMax === null) {
+    viewMin = dataMin;
+    viewMax = dataMax;
+  }
+
+  const rangeMs = viewMax - viewMin;
+  const initialStep = getTickStepMs(rangeMs);
+
+  // Build midnight-aligned initial ticks
+  function buildAlignedTicks(axis) {
+    const aligned = [];
+    const dayStart = new Date(viewMin);
+    dayStart.setHours(0, 0, 0, 0);
+    let t = dayStart.getTime();
+    while (t < viewMin) t += initialStep;
+    for (; t <= viewMax; t += initialStep) aligned.push({ value: t });
+    axis.ticks = aligned;
+  }
+
+  // Build IOB series at CGM timestamps — use raw data so panning outside the
+  // selected date range still shows data. Stats continue to use filteredCGM/Basal/Bolus.
+  const iobData = rawCGM.map(r => ({
+    x: r.ts.getTime(),
+    y: parseFloat(calcIOB(r.ts, rawBolus, diaHours).toFixed(2))
+  }));
+  const cgmData = rawCGM.map(r => ({ x: r.ts.getTime(), y: r.glc }));
+  const basalData = rawBasal.map(r => ({ x: r.ts.getTime(), y: r.rate }));
+  const carbBolus = rawBolus.filter(b => b.carbs > 0).map(b => ({
+    x: b.ts.getTime(), y: 0, carbs: b.carbs, insulin: b.insulin
+  }));
+  const hypoCarbs = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+  const hypoBolus = rawBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001).map(b => ({
+    x: b.ts.getTime(), y: 0, carbs: 0, insulin: b.insulin, hypo: true, hypoCarbs
+  }));
+  const corrBolus = rawBolus.filter(b => b.carbs === 0 && b.insulin > 0 && Math.abs(b.insulin - 0.05) >= 0.001).map(b => ({
+    x: b.ts.getTime(), y: 0, carbs: 0, insulin: b.insulin
+  }));
+
+  if (mainChart) mainChart.destroy();
+  container.innerHTML = '<canvas id="mainCanvas"></canvas>';
+  const ctx = document.getElementById('mainCanvas').getContext('2d');
+
+  // Plugin: bolus flags
+  const bolusPlugin = {
+    id: 'bolusFlags',
+    afterDraw(chart) {
+      const { ctx, scales } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y-glc'];
+      if (!xScale || !yScale) return;
+      const drawFlag = (b, color) => {
+        const xPx = xScale.getPixelForValue(b.x);
+        if (xPx < xScale.left || xPx > xScale.right) return; // clip
+        const yBottom = yScale.getPixelForValue(yScale.min);
+        const yTop = yScale.getPixelForValue(yScale.max);
+        const lineH = Math.min(60, (yBottom - yTop) * 0.3);
+        const flagH = b.insulin * 6 + 10;
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.moveTo(xPx, yBottom - 2);
+        ctx.lineTo(xPx, yBottom - lineH);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        const fw = b.hypo ? 42 : 36, fh = Math.max(b.hypo ? 26 : 18, flagH);
+        ctx.fillStyle = color + '33';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.rect(xPx, yBottom - lineH - fh, fw, fh);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '500 9px DM Mono, monospace';
+        ctx.textAlign = 'left';
+        if (b.hypo) {
+          ctx.fillStyle = '#fff';
+          ctx.font = '700 8px DM Mono, monospace';
+          ctx.fillText('HYPO', xPx + 3, yBottom - lineH - fh + 10);
+          ctx.font = '500 8px DM Mono, monospace';
+          ctx.fillText(b.hypoCarbs + 'g', xPx + 3, yBottom - lineH - fh + 20);
+        } else {
+          if (b.carbs > 0) ctx.fillText(b.carbs + 'g', xPx + 3, yBottom - lineH - fh + 10);
+          ctx.fillText(b.insulin.toFixed(2) + 'U', xPx + 3, yBottom - lineH - fh + (b.carbs > 0 ? 20 : 10));
+        }
+        ctx.restore();
+      };
+      carbBolus.forEach(b => drawFlag(b, '#3b82f6'));
+      corrBolus.forEach(b => drawFlag(b, '#f43f5e'));
+      hypoBolus.forEach(b => drawFlag(b, '#f97316'));
+    }
+  };
+
+  // Plugin: midnight vertical lines
+  const midnightPlugin = {
+    id: 'midnightLines',
+    afterDraw(chart) {
+      const { ctx, scales } = chart;
+      const xScale = scales['x'];
+      const yScale = scales['y-glc'];
+      if (!xScale || !yScale) return;
+
+      // Find all midnights within current view
+      const vMin = xScale.min, vMax = xScale.max;
+      const startDay = new Date(vMin);
+      startDay.setHours(0, 0, 0, 0);
+      startDay.setDate(startDay.getDate() + 1);
+
+      ctx.save();
+      for (let midnight = startDay.getTime(); midnight <= vMax; midnight += 86400000) {
+        const xPx = xScale.getPixelForValue(midnight);
+        if (xPx < xScale.left || xPx > xScale.right) continue;
+
+        // Solid line
+        ctx.beginPath();
+        ctx.moveTo(xPx, yScale.top);
+        ctx.lineTo(xPx, yScale.bottom);
+        ctx.strokeStyle = 'rgba(100,116,139,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.stroke();
+
+        // Date label at top
+        const d = new Date(midnight);
+        const label = d.toLocaleDateString('sv-SE', { weekday: 'short', month: 'short', day: 'numeric' });
+        ctx.fillStyle = 'rgba(100,116,139,0.75)';
+        ctx.font = '600 10px DM Mono, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, xPx + 4, yScale.top + 13);
+      }
+      ctx.restore();
+    }
+  };
+
+  mainChart = new Chart(ctx, {
+    type: 'line',
+    plugins: [bolusPlugin, midnightPlugin],
+    data: {
+      datasets: [
+        {
+          label: 'CGM (mmol/L)', data: cgmData, yAxisID: 'y-glc',
+          borderColor: '#00d4b1', backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, order: 1,
+        },
+        {
+          label: 'Basal Rate (U/h)', data: basalData, yAxisID: 'y-basal',
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)',
+          borderWidth: 1.5, pointRadius: 0, stepped: 'before', fill: true, order: 2,
+        },
+        {
+          label: 'IOB (U)', data: iobData, yAxisID: 'y-iob',
+          borderColor: 'rgba(168,85,247,0.7)', backgroundColor: 'rgba(168,85,247,0.08)',
+          borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4, order: 3,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      animation: { duration: 200 },
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: viewMin,
+          max: viewMax,
+          grid: { color: 'rgba(31,45,69,0.8)' },
+          afterBuildTicks: buildAlignedTicks,
+          ticks: {
+            color: '#64748b',
+            font: { family: 'DM Mono', size: 11 },
+            maxRotation: 0,
+            callback: (val) => fmtTick(val, rangeMs),
+          },
+        },
+        'y-glc': {
+          position: 'left',
+          title: { display: true, text: 'Glucose (mmol/L)', color: '#00d4b1', font: { family: 'DM Mono', size: 11 } },
+          grid: { color: 'rgba(31,45,69,0.8)' },
+          ticks: { color: '#00d4b1', font: { family: 'DM Mono', size: 11 } },
+          min: 2,
+          afterDataLimits(scale) { scale.max = Math.max(scale.max, 14); },
+        },
+        'y-basal': {
+          position: 'right',
+          title: { display: true, text: 'Basal (U/h)', color: '#f59e0b', font: { family: 'DM Mono', size: 11 } },
+          grid: { display: false },
+          ticks: { color: '#f59e0b', font: { family: 'DM Mono', size: 11 } },
+          min: 0,
+        },
+        'y-iob': {
+          position: 'right',
+          title: { display: true, text: 'IOB (U)', color: '#a855f7', font: { family: 'DM Mono', size: 11 } },
+          grid: { display: false },
+          ticks: { color: '#a855f7', font: { family: 'DM Mono', size: 11 } },
+          min: 0,
+          display: false,
+        },
+      }
+    }
+  });
+
+  // Target band plugin stays
+  mainChart.options.plugins.targetBand = {};
+  mainChart.update('none');
+
+  // Setup pan/zoom on the canvas
+  setupZoomPan(document.getElementById('mainCanvas'));
+
+  // ── Custom tooltip ────────────────────────────────────────────────────────────
+  const mainTooltipEl = document.getElementById('mainChartTooltip');
+  const mainCanvas = document.getElementById('mainCanvas');
+
+  mainCanvas.addEventListener('mousemove', (e) => {
+    if (!mainChart) return;
+    const rect = mainCanvas.getBoundingClientRect();
+    const xScale = mainChart.scales['x'];
+    const yGlc   = mainChart.scales['y-glc'];
+    if (!xScale || !yGlc) return;
+
+    const mouseX = e.clientX - rect.left;
+    if (mouseX < xScale.left || mouseX > xScale.right) {
+      mainTooltipEl.style.display = 'none'; return;
+    }
+
+    // Convert pixel → timestamp
+    const ts = xScale.getValueForPixel(mouseX);
+
+    // Find nearest CGM point by binary search
+    let lo = 0, hi = rawCGM.length - 1, nearestCGM = null;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const t = rawCGM[mid].ts.getTime();
+      if (t < ts) lo = mid + 1; else hi = mid - 1;
+    }
+    const candidates = [rawCGM[lo - 1], rawCGM[lo]].filter(Boolean);
+    nearestCGM = candidates.reduce((best, r) =>
+      !best || Math.abs(r.ts.getTime() - ts) < Math.abs(best.ts.getTime() - ts) ? r : best, null);
+    if (!nearestCGM || Math.abs(nearestCGM.ts.getTime() - ts) > 10 * 60000) {
+      mainTooltipEl.style.display = 'none'; return;
+    }
+
+    // Find basal rate active at this timestamp
+    let basalRate = null;
+    for (const b of rawBasal) {
+      if (b.ts.getTime() <= nearestCGM.ts.getTime()) basalRate = b.rate;
+      else break;
+    }
+
+    // IOB at nearest CGM timestamp
+    const iob = calcIOB(nearestCGM.ts, rawBolus, diaHours);
+
+    // Boluses within ±8 min of cursor timestamp (not the snapped CGM point)
+    const BOLUS_WIN = 8 * 60000;
+    const nearbyBoluses = rawBolus.filter(b => Math.abs(b.ts.getTime() - ts) <= BOLUS_WIN);
+
+    // Build HTML
+    const glcColor = nearestCGM.glc < targetRange.low ? '#ef4444'
+                   : nearestCGM.glc > targetRange.high ? '#f59e0b' : '#00d4b1';
+    const timeStr = nearestCGM.ts.toLocaleString('sv-SE').replace('T', ' ');
+    let html = `<strong style="color:var(--teal)">${timeStr}</strong><br>`;
+    html += `<span style="color:${glcColor}">● CGM: ${nearestCGM.glc.toFixed(1)} mmol/L</span><br>`;
+    if (basalRate !== null) html += `<span style="color:#f59e0b">▬ Basal: ${basalRate.toFixed(2)} U/h</span><br>`;
+    html += `<span style="color:#a855f7">◑ IOB: ${iob.toFixed(2)} U</span>`;
+
+    const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+    for (const b of nearbyBoluses) {
+      const isHypo = b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001;
+      const bTime = b.ts.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+      if (isHypo) {
+        html += `<br><span style="color:#f97316">🍬 Hypo Tx @ ${bTime} — ${hypoCarbsVal}g carbs</span>`;
+      } else if (b.carbs > 0) {
+        html += `<br><span style="color:#3b82f6">🍽 Meal @ ${bTime} — ${b.carbs}g / ${b.insulin.toFixed(2)}U</span>`;
+      } else if (b.insulin > 0) {
+        html += `<br><span style="color:#f43f5e">💊 Correction @ ${bTime} — ${b.insulin.toFixed(2)}U</span>`;
+      }
+    }
+
+    mainTooltipEl.innerHTML = html;
+    mainTooltipEl.style.display = 'block';
+
+    // Position: flip left if near right edge
+    const tipW = 260;
+    const left = e.clientX + 16 + tipW > window.innerWidth
+      ? e.clientX - tipW - 8 : e.clientX + 16;
+    mainTooltipEl.style.left = left + 'px';
+    mainTooltipEl.style.top  = (e.clientY - 10) + 'px';
+  });
+
+  mainCanvas.addEventListener('mouseleave', () => {
+    mainTooltipEl.style.display = 'none';
+  });
+}
+
+// Target band drawn via beforeDraw hook registered once
+Chart.register({
+  id: 'targetBand',
+  beforeDraw(chart) {
+    const { ctx, scales } = chart;
+    const yScale = scales['y-glc'];
+    const xScale = scales['x'];
+    if (!yScale || !xScale) return;
+    const yLow = yScale.getPixelForValue(targetRange.low);
+    const yHigh = yScale.getPixelForValue(targetRange.high);
+    ctx.save();
+    ctx.fillStyle = 'rgba(16,185,129,0.06)';
+    ctx.fillRect(xScale.left, yHigh, xScale.width, yLow - yHigh);
+    ctx.beginPath();
+    ctx.moveTo(xScale.left, yLow);
+    ctx.lineTo(xScale.right, yLow);
+    ctx.strokeStyle = 'rgba(239,68,68,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,4]);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(xScale.left, yHigh);
+    ctx.lineTo(xScale.right, yHigh);
+    ctx.strokeStyle = 'rgba(245,158,11,0.3)';
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+});
+
+// ─── Statistics ───────────────────────────────────────────────────────────────
+function updateStats() {
+  if (rawCGM.length === 0) {
+    document.getElementById('statsGrid').style.display = 'none';
+    document.getElementById('todSection').style.display = 'none';
+    document.getElementById('hodSection').style.display = 'none';
+    return;
+  }
+  document.getElementById('statsGrid').style.display = 'grid';
+  document.getElementById('todSection').style.display = 'block';
+  document.getElementById('hodSection').style.display = 'block';
+
+  // Use visible view range if available, else full filtered range
+  const vMin = viewMin ?? rawCGM[0].ts.getTime();
+  const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+  const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+
+  if (visCGM.length === 0) return;
+
+  const glcs = visCGM.map(r => r.glc);
+  const avg = mean(glcs);
+  const sd = stddev(glcs);
+  const cv = (sd / avg * 100);
+  const tir = glcs.filter(g => g >= targetRange.low && g <= targetRange.high).length / glcs.length * 100;
+  const tbr = glcs.filter(g => g < targetRange.low).length / glcs.length * 100;
+  const tar = glcs.filter(g => g > targetRange.high).length / glcs.length * 100;
+  const avgMgdl = avg * 18.015;
+  const gmiPct = 3.31 + 0.02392 * avgMgdl;
+  const gmiMmol = Math.round((gmiPct - 2.15) * 10.929);
+
+  const basalUnits = visBasal.reduce((s,b) => s + (b.units || 0), 0);
+  const bolusUnits = visBolus.reduce((s,b) => s + (b.insulin || 0), 0);
+  const days = (vMax - vMin) / 86400000;
+  const tdi = (basalUnits + bolusUnits) / Math.max(days, 1/24);
+
+  document.getElementById('statAvg').innerHTML = avg.toFixed(1) + '<span class="stat-unit">mmol/L</span>';
+  document.getElementById('statTIR').innerHTML = tir.toFixed(0) + '<span class="stat-unit">%</span>';
+  document.getElementById('statTIR').nextElementSibling.textContent = `${targetRange.low} – ${targetRange.high} mmol/L`;
+  document.getElementById('statLow').innerHTML = tbr.toFixed(1) + '<span class="stat-unit">%</span>';
+  document.getElementById('statLow').nextElementSibling.textContent = `< ${targetRange.low} mmol/L`;
+  document.getElementById('statHigh').innerHTML = tar.toFixed(0) + '<span class="stat-unit">%</span>';
+  document.getElementById('statHigh').nextElementSibling.textContent = `> ${targetRange.high} mmol/L`;
+  document.getElementById('statGMI').innerHTML = gmiMmol + '<span class="stat-unit">mmol/mol</span> <span style="font-size:0.75rem;color:var(--muted);font-family:DM Mono,monospace">(' + gmiPct.toFixed(1) + '%)</span>';
+  document.getElementById('statCV').innerHTML = cv.toFixed(0) + '<span class="stat-unit">%CV</span>';
+  document.getElementById('statTDI').innerHTML = tdi.toFixed(1) + '<span class="stat-unit">U/day</span>';
+
+  const basalPct = (basalUnits + bolusUnits) > 0 ? Math.round(basalUnits / (basalUnits + bolusUnits) * 100) : null;
+  const bolusPct = basalPct !== null ? 100 - basalPct : null;
+  if (basalPct !== null) {
+    document.getElementById('statBasalBolus').innerHTML =
+      `<span style="color:var(--amber)">${basalPct}%</span><span style="color:var(--muted);font-size:1rem"> / </span><span style="color:var(--blue)">${bolusPct}%</span>`;
+    const basalPerDay = (basalUnits / Math.max(days, 1/24)).toFixed(1);
+    const bolusPerDay = (bolusUnits / Math.max(days, 1/24)).toFixed(1);
+    document.getElementById('statBasalBolusSub').innerHTML =
+      `<span style="color:var(--amber)">${basalPerDay}U</span> / <span style="color:var(--blue)">${bolusPerDay}U</span> per day`;
+  } else {
+    document.getElementById('statBasalBolus').innerHTML = '—';
+  }
+
+  const totalCarbs = visBolus.reduce((s, b) => s + (b.carbs || 0), 0);
+  const avgCarbs = days > 0 ? totalCarbs / days : 0;
+  document.getElementById('statCarbs').innerHTML = Math.round(avgCarbs) + '<span class="stat-unit">g</span>';
+  document.getElementById('statCarbsSub').textContent = `${Math.round(totalCarbs)}g over ${Math.round(days)} day${Math.round(days) !== 1 ? 's' : ''}`;
+  document.getElementById('statBoluses').innerHTML = visBolus.length + '';
+
+  const hypoTreatments = visBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
+  const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+  const hypoPerDay = days > 0 ? (hypoTreatments.length / days).toFixed(1) : '—';
+  document.getElementById('statHypos').innerHTML = hypoTreatments.length + '';
+  document.getElementById('statHyposSub').textContent = `${hypoPerDay}/day · ${hypoCarbsVal}g carbs each`;
+
+  const tirEl = document.getElementById('statTIR');
+  tirEl.className = 'stat-value';
+  if (tir >= 70) tirEl.classList.add('green');
+  else if (tir >= 50) tirEl.classList.add('amber');
+  else tirEl.classList.add('red');
+
+  buildTOD(visCGM, visBasal);
+}
+
+function buildTOD(visCGM, visBasal) {
+  if (!visCGM) {
+    const vMin = viewMin ?? rawCGM[0].ts.getTime();
+    const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+    visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+    visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  }
+
+  // ── Hourly basal: for each hour slot, find basal segments active during it ──
+  // Each basal record has ts (start) and dur (minutes). We spread its rate across
+  // the hours it overlaps.
+  const basalHourlySum  = new Array(24).fill(0);
+  const basalHourlyMins = new Array(24).fill(0);
+  (visBasal || []).forEach(b => {
+    const startMs = b.ts.getTime();
+    const endMs   = startMs + (b.dur || 0) * 60000;
+    for (let h = 0; h < 24; h++) {
+      const slotStart = new Date(b.ts);
+      slotStart.setHours(h, 0, 0, 0);
+      const slotEnd = new Date(slotStart.getTime() + 3600000);
+      const overlapMs = Math.max(0, Math.min(endMs, slotEnd.getTime()) - Math.max(startMs, slotStart.getTime()));
+      const overlapMin = overlapMs / 60000;
+      if (overlapMin > 0) {
+        basalHourlySum[h]  += b.rate * overlapMin;
+        basalHourlyMins[h] += overlapMin;
+      }
+    }
+  });
+  // Average rate per hour (U/h); null if no coverage
+  const hourlyBasal = basalHourlySum.map((sum, h) =>
+    basalHourlyMins[h] > 0 ? sum / basalHourlyMins[h] : null
+  );
+
+  // Aggregate per hour with percentile stats
+  const hourlyData = Array.from({length: 24}, () => []);
+  visCGM.forEach(r => hourlyData[r.ts.getHours()].push(r.glc));
+
+  function percentile(sorted, p) {
+    if (sorted.length === 0) return null;
+    const idx = (p / 100) * (sorted.length - 1);
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+
+  const hourStats = hourlyData.map(vals => {
+    if (vals.length === 0) return null;
+    const sorted = [...vals].sort((a, b) => a - b);
+    return {
+      median: percentile(sorted, 50),
+      p5:     percentile(sorted, 5),
+      p95:    percentile(sorted, 95),
+      p25:    percentile(sorted, 25),
+      p75:    percentile(sorted, 75),
+      n: vals.length,
+    };
+  });
+
+  const canvas = document.getElementById('todCanvas');
+  if (!canvas) return;
+  // DPI-aware sizing
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.parentElement.clientWidth - 40; // section padding
+  const cssH = 320;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = cssW, H = cssH;
+  const PAD = { top: 14, right: 44, bottom: 28, left: 52 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  // Y range: always start at 0, ceiling above all p90 values and target high
+  const allVals = hourStats.filter(Boolean).map(s => s.p95);
+  allVals.push(targetRange.high + 1);
+  const yMin = 0;
+  const yMax = Math.ceil(Math.max(...allVals) + 0.5);
+
+  const toX = (h) => PAD.left + (h / 24) * plotW;  // 0..24 mapped across plot (right edge = 24:00 / 00:00)
+  const toY = (v) => PAD.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  // ── Background & grid ───────────────────────────────────────────────────────
+  ctx.clearRect(0, 0, W, H);
+
+  // Target band
+  ctx.fillStyle = 'rgba(16,185,129,0.06)';
+  ctx.fillRect(PAD.left, toY(targetRange.high), plotW, toY(targetRange.low) - toY(targetRange.high));
+
+  // Horizontal grid lines at mmol/L integers
+  ctx.strokeStyle = 'rgba(31,45,69,0.8)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = `10px DM Mono, monospace`;
+  ctx.textAlign = 'right';
+  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
+    const y = toY(v);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(W - PAD.right, y);
+    ctx.stroke();
+    ctx.fillText(v, PAD.left - 4, y + 3.5);
+  }
+  ctx.setLineDash([]);
+
+  // Target range dashed borders
+  ctx.strokeStyle = 'rgba(239,68,68,0.35)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(PAD.left, toY(targetRange.low)); ctx.lineTo(W - PAD.right, toY(targetRange.low)); ctx.stroke();
+  ctx.strokeStyle = 'rgba(245,158,11,0.35)';
+  ctx.beginPath(); ctx.moveTo(PAD.left, toY(targetRange.high)); ctx.lineTo(W - PAD.right, toY(targetRange.high)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Target range labels
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(239,68,68,0.6)';
+  ctx.fillText(targetRange.low + ' mmol/L', PAD.left + 3, toY(targetRange.low) - 3);
+  ctx.fillStyle = 'rgba(245,158,11,0.6)';
+  ctx.fillText(targetRange.high + ' mmol/L', PAD.left + 3, toY(targetRange.high) - 3);
+
+  // ── Valid hour indices ───────────────────────────────────────────────────────
+  const valid = hourStats.map((s, i) => s ? i : null).filter(i => i !== null);
+  if (valid.length < 2) {
+    ctx.fillStyle = 'rgba(100,116,139,0.5)';
+    ctx.textAlign = 'center';
+    ctx.fillText('Not enough data', W / 2, H / 2);
+    return;
+  }
+
+  // Smooth the series with a circular wrap for 24h continuity
+  function smoothed(values, sigma = 1.2) {
+    return values.map((_, h) => {
+      if (values[h] === null) return null;
+      let sumW = 0, sumV = 0;
+      for (let dh = -4; dh <= 4; dh++) {
+        const ih = ((h + dh) % 24 + 24) % 24;
+        if (values[ih] === null) continue;
+        const w = Math.exp(-(dh * dh) / (2 * sigma * sigma));
+        sumW += w; sumV += w * values[ih];
+      }
+      return sumW > 0 ? sumV / sumW : null;
+    });
+  }
+
+  const rawMedian = hourStats.map(s => s ? s.median : null);
+  const rawP5     = hourStats.map(s => s ? s.p5     : null);
+  const rawP95    = hourStats.map(s => s ? s.p95    : null);
+  const rawP25    = hourStats.map(s => s ? s.p25    : null);
+  const rawP75    = hourStats.map(s => s ? s.p75    : null);
+
+  const smMedian = smoothed(rawMedian, 1.5);
+  const smP5     = smoothed(rawP5,    1.5);
+  const smP95    = smoothed(rawP95,   1.5);
+  const smP25    = smoothed(rawP25,    1.5);
+  const smP75    = smoothed(rawP75,    1.5);
+
+  // Extend each series to index 24 (= end of 23:00 slot / 00:00) by repeating hour 23's value
+  [smMedian, smP5, smP95, smP25, smP75].forEach(arr => { arr[24] = arr[23]; });
+  const validExt = valid[valid.length - 1] === 23 ? [...valid, 24] : valid;
+
+  // Build path from valid points only (respecting gaps)
+  function buildPath(values, reverse = false) {
+    const pts = [];
+    const hours = reverse ? [...validExt].reverse() : validExt;
+    for (const h of hours) {
+      if (values[h] !== null) pts.push([toX(h), toY(values[h])]);
+    }
+    return pts;
+  }
+
+  function drawFilledBand(upperVals, lowerVals, fillStyle) {
+    const upper = buildPath(upperVals);
+    const lower = buildPath(lowerVals, true);
+    if (upper.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(upper[0][0], upper[0][1]);
+    for (let i = 1; i < upper.length; i++) {
+      const prev = upper[i-1], curr = upper[i];
+      const cpx = (prev[0] + curr[0]) / 2;
+      ctx.bezierCurveTo(cpx, prev[1], cpx, curr[1], curr[0], curr[1]);
+    }
+    for (let i = 0; i < lower.length; i++) {
+      const prev = lower[i-1] ?? lower[0], curr = lower[i];
+      if (i === 0) { ctx.lineTo(curr[0], curr[1]); continue; }
+      const cpx = (prev[0] + curr[0]) / 2;
+      ctx.bezierCurveTo(cpx, prev[1], cpx, curr[1], curr[0], curr[1]);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+  }
+
+  function drawLine(values, strokeStyle, lineWidth = 2) {
+    const pts = buildPath(values);
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) {
+      const prev = pts[i-1], curr = pts[i];
+      const cpx = (prev[0] + curr[0]) / 2;
+      ctx.bezierCurveTo(cpx, prev[1], cpx, curr[1], curr[0], curr[1]);
+    }
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  // ── Left Y axis label (glucose) ─────────────────────────────────────────────
+  ctx.save();
+  ctx.translate(11, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,212,177,0.7)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Glucose (mmol/L)', 0, 0);
+  ctx.restore();
+
+  // Draw 5–95th percentile band (outer)
+  drawFilledBand(smP95, smP5, 'rgba(0,212,177,0.10)');
+  // Draw 25–75th percentile band (inner)
+  drawFilledBand(smP75, smP25, 'rgba(0,212,177,0.22)');
+  // Draw median line
+  drawLine(smMedian, '#00d4b1', 2.5);
+
+  // ── Basal rate right axis & stepped line ────────────────────────────────────
+  const validBasal = hourlyBasal.filter(v => v !== null);
+  if (validBasal.length >= 2) {
+    const basalMax = Math.ceil(Math.max(...validBasal) * 2) / 2 + 0.5; // round up to nearest 0.5
+    const basalMin = 0;
+    const toYBasal = (v) => PAD.top + plotH - ((v - basalMin) / (basalMax - basalMin)) * plotH;
+
+    // Right Y axis ticks
+    const PAD_R = 40;
+    ctx.save();
+    ctx.font = '10px DM Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(245,158,11,0.65)';
+    const basalStep = basalMax <= 2 ? 0.5 : 1;
+    for (let v = 0; v <= basalMax; v += basalStep) {
+      const y = toYBasal(v);
+      if (y < PAD.top - 2 || y > PAD.top + plotH + 2) continue;
+      ctx.fillText(v.toFixed(1), W - PAD.right + 4, y + 3.5);
+      // light grid line
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,158,11,0.08)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(PAD.left, y);
+      ctx.lineTo(W - PAD.right, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Minor decimal ticks (0.1 intervals) — short tick marks on right axis, no label
+    ctx.save();
+    ctx.strokeStyle = 'rgba(245,158,11,0.4)';
+    ctx.lineWidth = 1;
+    for (let v = 0; v <= basalMax + 0.01; v = Math.round((v + 0.1) * 10) / 10) {
+      const isMajor = Math.abs(v % basalStep) < 0.01 || Math.abs(v % basalStep - basalStep) < 0.01;
+      if (isMajor) continue; // already drawn above
+      const y = toYBasal(v);
+      if (y < PAD.top - 2 || y > PAD.top + plotH + 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(W - PAD.right, y);
+      ctx.lineTo(W - PAD.right + 4, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // Right axis label
+    ctx.save();
+    ctx.translate(W - 8, PAD.top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(245,158,11,0.7)';
+    ctx.font = '9px DM Mono, monospace';
+    ctx.fillText('Basal (U/h)', 0, 0);
+    ctx.restore();
+
+    // Draw stepped basal line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(245,158,11,0.85)';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    let started = false;
+    for (let h = 0; h < 24; h++) {
+      if (hourlyBasal[h] === null) { started = false; continue; }
+      const x1 = toX(h);
+      const x2 = toX(h + 1);
+      const y  = toYBasal(hourlyBasal[h]);
+      if (!started) { ctx.moveTo(x1, y); started = true; }
+      else ctx.lineTo(x1, y);
+      ctx.lineTo(x2, y);
+    }
+    ctx.stroke();
+
+    // Subtle fill under basal line
+    ctx.beginPath();
+    started = false;
+    const basalZero = toYBasal(0);
+    for (let h = 0; h < 24; h++) {
+      if (hourlyBasal[h] === null) { started = false; continue; }
+      const x1 = toX(h);
+      const x2 = toX(h + 1);
+      const y  = toYBasal(hourlyBasal[h]);
+      if (!started) { ctx.moveTo(x1, basalZero); ctx.lineTo(x1, y); started = true; }
+      else ctx.lineTo(x1, y);
+      ctx.lineTo(x2, y);
+    }
+    ctx.lineTo(W - PAD.right, basalZero);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(245,158,11,0.07)';
+    ctx.fill();
+    ctx.restore();
+
+    canvas._todBasal = { hourlyBasal, toYBasal };
+  } else {
+    canvas._todBasal = null;
+  }
+
+  // ── X axis ──────────────────────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = `10px DM Mono, monospace`;
+  ctx.textAlign = 'center';
+  [0, 3, 6, 9, 12, 15, 18, 21, 24].forEach(h => {
+    const x = toX(h);
+    ctx.fillText(h === 24 ? '00' : String(h).padStart(2, '0'), x, H - 6);
+    // Subtle vertical tick
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, H - PAD.bottom);
+    ctx.lineTo(x, H - PAD.bottom + 4);
+    ctx.stroke();
+  });
+
+  // ── Tooltip on hover ────────────────────────────────────────────────────────
+  canvas._todStats = hourStats;
+  canvas._todGeom = { PAD, plotW, toX, toY, yMin, yMax, smMedian, smP5, smP95, smP25, smP75 };
+
+  // Build companion bolus/carbs/hypo plot
+  const vMin2 = viewMin ?? rawCGM[0].ts.getTime();
+  const vMax2 = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+  const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin2 && t <= vMax2; });
+  buildBolusHOD(visBolus2, vMin2, vMax2);
+}
+
+// ─── Bolus / Carbs / Hypo by Hour of Day ─────────────────────────────────────
+function buildBolusHOD(visBolus, vMin, vMax) {
+  const canvas = document.getElementById('hodCanvas');
+  if (!canvas) return;
+
+  // Determine the number of days covered for "per day" averaging
+  const days = Math.max((vMax - vMin) / 86400000, 1 / 24);
+
+  // Accumulate per-hour totals
+  const hourCarbs   = new Array(24).fill(0); // total grams
+  const hourBolus   = new Array(24).fill(0); // total units (excl. hypo)
+  const hourHypo    = new Array(24).fill(0); // count of hypo treatments
+  const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+
+  for (const b of visBolus) {
+    const h = b.ts.getHours();
+    const isHypo = b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001;
+    if (isHypo) {
+      hourHypo[h]++;
+    } else {
+      hourCarbs[h] += b.carbs || 0;
+      hourBolus[h] += b.insulin || 0;
+    }
+  }
+
+  // Convert to per-day averages
+  const avgCarbs = hourCarbs.map(v => v / days);
+  const avgBolus = hourBolus.map(v => v / days);
+  const avgHypo  = hourHypo.map(v => v / days);
+
+  // DPI-aware sizing
+  const dpr  = window.devicePixelRatio || 1;
+  const cssW = canvas.parentElement.clientWidth - 40;
+  const cssH = 240;
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = cssW, H = cssH;
+  const PAD = { top: 14, right: 90, bottom: 28, left: 52 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  const toX  = h => PAD.left + (h / 24) * plotW;
+  const barW = plotW / 24;
+
+  // Y axes: left = carbs (g/day) and bolus (U/day) share scale; right = hypo count/day
+  const maxCarbs = Math.max(...avgCarbs, 1);
+  const maxBolus = Math.max(...avgBolus, 0.1);
+  // Use a shared left axis that fits both; scale bolus onto carbs axis via ICR proxy
+  // Actually show carbs on left, bolus on right-inner — simpler: dual left scale
+  // Strategy: carbs on left axis, bolus on its own right axis, hypo count on far right
+  const yMaxCarbs = Math.ceil(maxCarbs * 1.3 + 1);
+  const yMaxBolus = Math.max(Math.ceil(maxBolus * 1.3 * 10) / 10, 0.5);
+  const yMaxHypo  = Math.max(Math.ceil(Math.max(...avgHypo) * 1.5 * 10) / 10, 0.2);
+
+  const toYCarbs = v => PAD.top + plotH - (v / yMaxCarbs) * plotH;
+  const toYBolus = v => PAD.top + plotH - (v / yMaxBolus) * plotH;
+  const toYHypo  = v => PAD.top + plotH - (v / yMaxHypo)  * plotH;
+
+  // ── Background ──────────────────────────────────────────────────────────────
+  ctx.clearRect(0, 0, W, H);
+
+  // Horizontal grid lines (based on carbs axis)
+  ctx.strokeStyle = 'rgba(31,45,69,0.7)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'right';
+  const carbStep = yMaxCarbs <= 10 ? 2 : yMaxCarbs <= 30 ? 5 : yMaxCarbs <= 60 ? 10 : 20;
+  for (let v = 0; v <= yMaxCarbs; v += carbStep) {
+    const y = toYCarbs(v);
+    if (y < PAD.top - 2 || y > PAD.top + plotH + 2) continue;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillText(v, PAD.left - 4, y + 3.5);
+  }
+  ctx.setLineDash([]);
+
+  // ── Left axis label: Carbs ───────────────────────────────────────────────────
+  ctx.save();
+  ctx.translate(11, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(59,130,246,0.8)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Avg Carbs (g/day)', 0, 0);
+  ctx.restore();
+
+  // ── Bars: carbs (blue) ──────────────────────────────────────────────────────
+  for (let h = 0; h < 24; h++) {
+    if (avgCarbs[h] <= 0) continue;
+    const x = toX(h);
+    const y = toYCarbs(avgCarbs[h]);
+    const bh = PAD.top + plotH - y;
+    ctx.fillStyle = 'rgba(59,130,246,0.35)';
+    ctx.strokeStyle = 'rgba(59,130,246,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(x + 1, y, barW * 0.55 - 1, bh);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // ── Bars: bolus (purple) ────────────────────────────────────────────────────
+  // Bolus right axis ticks
+  ctx.save();
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(168,85,247,0.7)';
+  const bolusStep = yMaxBolus <= 1 ? 0.2 : yMaxBolus <= 3 ? 0.5 : 1;
+  for (let v = 0; v <= yMaxBolus + 0.001; v = Math.round((v + bolusStep) * 100) / 100) {
+    const y = toYBolus(v);
+    if (y < PAD.top - 2 || y > PAD.top + plotH + 2) continue;
+    ctx.fillText(v.toFixed(1), W - PAD.right + 4, y + 3.5);
+    // Minor ticks at 0.1
+    ctx.strokeStyle = 'rgba(168,85,247,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W - PAD.right, y); ctx.lineTo(W - PAD.right + 3, y); ctx.stroke();
+  }
+  // Bolus right axis label
+  ctx.save();
+  ctx.translate(W - PAD.right + 38, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(168,85,247,0.8)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Avg Bolus (U/day)', 0, 0);
+  ctx.restore();
+  ctx.restore();
+
+  for (let h = 0; h < 24; h++) {
+    if (avgBolus[h] <= 0) continue;
+    const x = toX(h);
+    const y = toYBolus(avgBolus[h]);
+    const bh = PAD.top + plotH - y;
+    ctx.fillStyle = 'rgba(168,85,247,0.28)';
+    ctx.strokeStyle = 'rgba(168,85,247,0.65)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(x + barW * 0.55 + 1, y, barW * 0.44 - 1, bh);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // ── Hypo dots (orange) ──────────────────────────────────────────────────────
+  const dotR = 5;
+  for (let h = 0; h < 24; h++) {
+    if (avgHypo[h] <= 0) continue;
+    const cx = toX(h) + barW / 2;
+    const cy = toYHypo(avgHypo[h]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(249,115,22,0.85)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(249,115,22,0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Count label above dot
+    if (hourHypo[h] > 0) {
+      ctx.fillStyle = '#f97316';
+      ctx.font = '8px DM Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(hourHypo[h], cx, cy - dotR - 3);
+    }
+  }
+
+  // ── X axis ──────────────────────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'center';
+  [0, 3, 6, 9, 12, 15, 18, 21, 24].forEach(h => {
+    const x = toX(h);
+    ctx.fillText(h === 24 ? '00' : String(h).padStart(2, '0'), x, H - 6);
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.bottom); ctx.lineTo(x, H - PAD.bottom + 4); ctx.stroke();
+  });
+
+  // Store geometry for tooltip
+  canvas._hodGeom  = { PAD, plotW, barW, toX, toYCarbs, toYBolus, toYHypo };
+  canvas._hodData  = { avgCarbs, avgBolus, avgHypo, hourCarbs, hourBolus, hourHypo, hypoCarbsVal, days };
+}
+
+function mean(arr) {
+  return arr.reduce((s,v) => s+v, 0) / arr.length;
+}
+function stddev(arr) {
+  const m = mean(arr);
+  return Math.sqrt(arr.reduce((s,v) => s+(v-m)**2, 0) / arr.length);
+}
+
+// ─── Provider Management ──────────────────────────────────────────────────────
+function selectProvider(p) {
+  currentProvider = p;
+  ['anthropic','ollama','llamacpp','openclaw'].forEach(id => {
+    document.getElementById(`ptab-${id}`).classList.toggle('active', id === p);
+    const cfg = document.getElementById(`pconfig-${id}`);
+    if (cfg) cfg.style.display = id === p ? 'flex' : 'none';
+    const note = document.getElementById(`${id}-note`);
+    if (note) note.style.display = id === p ? 'block' : 'none';
+  });
+}
+
+function getProviderConfig() {
+  if (currentProvider === 'anthropic') {
+    return {
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-20250514',
+      apiKey: document.getElementById('apiKeyInput').value.trim(),
+      supportsSearch: true,
+    };
+  } else if (currentProvider === 'ollama') {
+    const base = (document.getElementById('ollamaEndpoint').value.trim() || 'http://localhost:11434');
+    return {
+      provider: 'openai',
+      endpoint: base.replace(/\/$/, '') + '/v1/chat/completions',
+      model: document.getElementById('ollamaModel').value.trim() || 'llama3.2',
+      label: 'Ollama',
+      supportsSearch: false,
+    };
+  } else if (currentProvider === 'llamacpp') {
+    const base = (document.getElementById('llamacppEndpoint').value.trim() || 'http://localhost:8080');
+    const modelName = document.getElementById('llamacppModel').value.trim() || 'local';
+    return {
+      provider: 'openai',
+      endpoint: base.replace(/\/$/, '') + '/v1/chat/completions',
+      model: modelName,
+      label: 'llama.cpp',
+      supportsSearch: false,
+    };
+  } else {
+    // openclaw
+    const base = (document.getElementById('openclawEndpoint').value.trim() || 'http://localhost:18789');
+    const model = document.getElementById('openclawModel').value.trim() || 'anthropic/claude-opus-4-6';
+    const token = document.getElementById('openclawToken').value.trim();
+    return {
+      provider: 'openai',
+      endpoint: base.replace(/\/$/, '') + '/v1/chat/completions',
+      model,
+      label: '🦞 OpenClaw',
+      token,
+      supportsSearch: false,
+    };
+  }
+}
+
+async function testOpenClaw() {
+  const base = (document.getElementById('openclawEndpoint').value.trim() || 'http://localhost:18789');
+  const token = document.getElementById('openclawToken').value.trim();
+  const resultEl = document.getElementById('openclawTestResult');
+  resultEl.style.color = 'var(--muted)';
+  resultEl.textContent = '⏳ Testing…';
+
+  // Try a GET to /v1/models — lightweight, standard OpenAI-compatible endpoint
+  const modelsUrl = base.replace(/\/$/, '') + '/v1/models';
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch(modelsUrl, { method: 'GET', headers });
+    if (res.ok) {
+      let label = 'reachable';
+      try {
+        const data = await res.json();
+        const models = data?.data?.map(m => m.id) ?? [];
+        if (models.length) label = `✓ reachable — models: ${models.slice(0,3).join(', ')}`;
+        else label = '✓ reachable (no models listed)';
+      } catch(_) { label = `✓ reachable (HTTP ${res.status})`; }
+      resultEl.style.color = 'var(--teal)';
+      resultEl.textContent = label;
+    } else {
+      resultEl.style.color = 'var(--amber)';
+      resultEl.textContent = `⚠ HTTP ${res.status} — gateway responded but returned an error`;
+    }
+  } catch(e) {
+    resultEl.style.color = 'var(--rose)';
+    if (e.message.includes('fetch')) {
+      resultEl.textContent = '✗ Cannot reach gateway — not running, wrong port, or CORS blocked';
+    } else {
+      resultEl.textContent = '✗ ' + e.message;
+    }
+  }
+}
+
+async function callLLM(messages, systemPrompt, maxTokens, useSearch = false) {
+  const cfg = getProviderConfig();
+  const t0 = Date.now();
+
+  if (cfg.provider === 'anthropic') {
+    const reqHeaders = {
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    };
+    if (cfg.apiKey) reqHeaders['x-api-key'] = cfg.apiKey;
+
+    const body = { model: cfg.model, max_tokens: maxTokens, messages };
+    if (systemPrompt) body.system = systemPrompt;
+    if (useSearch && cfg.supportsSearch) {
+      body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
+    }
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: reqHeaders, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`);
+
+    let text = '';
+    let searchUsed = false;
+    for (const block of data.content) {
+      if (block.type === 'text') text += block.text;
+      if (block.type === 'tool_use') searchUsed = true;
+    }
+
+    if (data.stop_reason === 'tool_use') {
+      const toolResults = data.content
+        .filter(b => b.type === 'tool_use')
+        .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: '' }));
+      const followRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: reqHeaders,
+        body: JSON.stringify({ ...body, messages: [...messages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResults }] })
+      });
+      const followData = await followRes.json();
+      text = followData.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      searchUsed = true;
+    }
+
+    const elapsed = (Date.now() - t0) / 1000;
+    const inputTok = data.usage?.input_tokens || 0;
+    const outputTok = data.usage?.output_tokens || 0;
+    const tps = outputTok > 0 ? (outputTok / elapsed).toFixed(1) : '—';
+    const USD_TO_SEK = 10.50;
+    const costSEK = ((inputTok * 3 + outputTok * 15) / 1_000_000 * USD_TO_SEK).toFixed(3);
+
+    return { text, searchUsed, inputTok, outputTok, tps,
+      costDisplay: costSEK, costUnit: 'SEK',
+      priceNote: '~10.50 SEK/USD · Sonnet 4: $3/$15 per MTok in/out',
+      modelLabel: cfg.model, elapsed };
+
+  } else {
+    // OpenAI-compatible (Ollama / llama.cpp / OpenClaw)
+    const oaiMsgs = systemPrompt
+      ? [{ role: 'system', content: systemPrompt }, ...messages]
+      : messages;
+    const headers = { 'Content-Type': 'application/json' };
+    if (cfg.token) headers['Authorization'] = `Bearer ${cfg.token}`;
+
+    let res;
+    try {
+      res = await fetch(cfg.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model: cfg.model, messages: oaiMsgs, max_tokens: maxTokens })
+      });
+    } catch (networkErr) {
+      // fetch() itself threw — server unreachable or CORS preflight blocked
+      const ep = cfg.endpoint;
+      throw new Error(
+        `Cannot reach ${ep}. ` +
+        `Either the server is not running, or it is blocking cross-origin requests from the browser.\n\n` +
+        `For OpenClaw: make sure the gateway is started and that it allows browser CORS. ` +
+        `Try starting it with the --cors flag if available, e.g. "openclaw gateway --port 18789 --cors". ` +
+        `For Ollama: set OLLAMA_ORIGINS="*" before starting. ` +
+        `For llama.cpp: add --cors-allow-origins "*" to the server command.\n\n` +
+        `(Original error: ${networkErr.message})`
+      );
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`);
+
+    const elapsed = (Date.now() - t0) / 1000;
+    const text = data.choices?.[0]?.message?.content || '';
+    const inputTok = data.usage?.prompt_tokens || 0;
+    const outputTok = data.usage?.completion_tokens || 0;
+    const tps = outputTok > 0 ? (outputTok / elapsed).toFixed(1) : '—';
+
+    return { text, searchUsed: false, inputTok, outputTok, tps,
+      costDisplay: '0.000', costUnit: 'SEK (local)',
+      priceNote: `Running locally — no API cost · ${cfg.label}`,
+      modelLabel: `${cfg.label} / ${cfg.model}`, elapsed };
+  }
+}
+
+// ─── AI Summary ───────────────────────────────────────────────────────────────
+function buildStatsText() {
+  if (rawCGM.length === 0) return '';
+  // Use exactly what is visible in the chart
+  const vMin = viewMin ?? rawCGM[0].ts.getTime();
+  const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+  const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  if (visCGM.length === 0) return '';
+
+  const glcs = visCGM.map(r => r.glc);
+  const avg = mean(glcs);
+  const sd = stddev(glcs);
+  const cv = (sd / avg * 100).toFixed(0);
+  const tir = (glcs.filter(g => g >= targetRange.low && g <= targetRange.high).length / glcs.length * 100).toFixed(1);
+  const tbr = (glcs.filter(g => g < targetRange.low).length / glcs.length * 100).toFixed(1);
+  const tar = (glcs.filter(g => g > targetRange.high).length / glcs.length * 100).toFixed(1);
+  const avgMgdl = avg * 18.015;
+  const gmiPct = (3.31 + 0.02392 * avgMgdl).toFixed(1);
+  const gmiMmol = Math.round((parseFloat(gmiPct) - 2.15) * 10.929);
+  const basalUnits = visBasal.reduce((s,b) => s + (b.units || 0), 0);
+  const bolusUnits = visBolus.reduce((s,b) => s + (b.insulin || 0), 0);
+  const days = (vMax - vMin) / 86400000;
+  const tdi = ((basalUnits + bolusUnits) / Math.max(days, 1/24)).toFixed(1);
+
+  const fromStr = new Date(vMin).toISOString().slice(0, 16).replace('T', ' ');
+  const toStr   = new Date(vMax).toISOString().slice(0, 16).replace('T', ' ');
+
+  // Hourly averages
+  const hourlyData = Array.from({length: 24}, () => []);
+  visCGM.forEach(r => { hourlyData[r.ts.getHours()].push(r.glc); });
+  const hourlyAvg = hourlyData.map(h => h.length ? mean(h).toFixed(2) : 'no data');
+  const hourlyStr = hourlyAvg.map((v,h) => `${String(h).padStart(2,'0')}h: ${v}`).join(', ');
+
+  const bolusCarbs = visBolus.filter(b => b.carbs > 0);
+  const carbRatios = bolusCarbs.filter(b => b.insulin > 0).map(b => b.carbs / b.insulin);
+  const avgCarbRatio = carbRatios.length ? (mean(carbRatios)).toFixed(1) : 'N/A';
+
+  const basalPct = (basalUnits + bolusUnits) > 0 ? (basalUnits / (basalUnits + bolusUnits) * 100).toFixed(0) : 'N/A';
+  const corrDoses = visBolus.filter(b => b.carbs === 0 && b.insulin > 0 && Math.abs(b.insulin - 0.05) >= 0.001);
+  const hypoTreatmentDoses = visBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
+  const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+  const corrPerDay = (corrDoses.length / Math.max(days, 1)).toFixed(1);
+  const corrAvgUnits = corrDoses.length ? mean(corrDoses.map(b => b.insulin)).toFixed(2) : 'N/A';
+
+  const age = document.getElementById('userAge').value;
+  const weight = document.getElementById('userWeight').value;
+  const tddPerKg = weight && tdi ? (parseFloat(tdi) / parseFloat(weight)).toFixed(3) : 'N/A';
+
+  return `
+Period: ${fromStr} to ${toStr} (${days.toFixed(1)} days)
+Patient: Age ${age || 'not specified'}, Weight ${weight ? weight + ' kg' : 'not specified'}${weight ? `, TDD/kg: ${tddPerKg} U/kg/day` : ''}
+Average Glucose: ${avg.toFixed(1)} mmol/L
+GMI (estimated HbA1c): ${gmiMmol} mmol/mol (${gmiPct}%)
+Time in Range (${targetRange.low}–${targetRange.high} mmol/L): ${tir}%
+Time Below Range (<${targetRange.low} mmol/L): ${tbr}%
+Time Above Range (>${targetRange.high} mmol/L): ${tar}%
+Coefficient of Variation (CV): ${cv}%
+Standard Deviation: ${sd.toFixed(1)} mmol/L
+Total Daily Insulin: ${tdi} U/day
+  - Basal: ${(basalUnits/Math.max(days,1/24)).toFixed(1)} U/day (${basalPct}% of TDI)
+  - Bolus: ${(bolusUnits/Math.max(days,1/24)).toFixed(1)} U/day (${100 - parseInt(basalPct)}% of TDI)
+Bolus doses total: ${visBolus.length} over ${days.toFixed(1)} days
+  - Meal boluses (with carbs): ${bolusCarbs.length}
+  - Correction boluses (no carbs, excl. hypo Tx): ${corrDoses.length} (${corrPerDay}/day, avg ${corrAvgUnits} U each)
+  - Hypo treatments (0.05U boluses, signaling carb rescue): ${hypoTreatmentDoses.length} (${(hypoTreatmentDoses.length / Math.max(days, 1)).toFixed(1)}/day, standard dose ${hypoCarbsVal}g carbs each)
+Average ICR (g carbs per unit insulin): ${avgCarbRatio}
+Hourly glucose averages (mmol/L): ${hourlyStr}
+DIA used for IOB calculation: ${diaHours}h
+System: CamAPS closed-loop (automated insulin delivery)
+`.trim();
+}
+
+async function generateSummary() {
+  const btn = document.getElementById('analyzeBtn');
+  const content = document.getElementById('summaryContent');
+  btn.disabled = true;
+  content.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div> Analysing your glucose patterns…';
+  document.getElementById('modelInfoBar').style.display = 'none';
+
+  const statsText = buildStatsText();
+  const prompt = buildAnalysisPrompt(statsText);
+
+  try {
+    const result = await callLLM([{ role: 'user', content: prompt }], null, 4096, false);
+
+    lastAnalysisText = result.text;
+    content.innerHTML = formatSummary(result.text);
+
+    document.getElementById('infoModel').textContent = result.modelLabel;
+    document.getElementById('infoInputTok').textContent = result.inputTok.toLocaleString();
+    document.getElementById('infoOutputTok').textContent = result.outputTok.toLocaleString();
+    document.getElementById('infoTps').textContent = result.tps;
+    document.getElementById('infoCost').textContent = result.costDisplay;
+    document.getElementById('infoCostUnit').textContent = result.costUnit;
+    document.getElementById('infoPriceNote').textContent = result.priceNote;
+    document.getElementById('modelInfoBar').style.display = 'flex';
+
+    // Seed chat context
+    chatHistory = [{
+      role: 'user',
+      content: `Here is the patient data and analysis for this session. Use this as context for all follow-up questions.\n\nDATA:\n${statsText}\n\nANALYSIS PERFORMED:\n${result.text}`
+    }, {
+      role: 'assistant',
+      content: 'Understood. I have the full dataset and analysis loaded. Ask me anything about the glucose patterns, insulin settings, or relevant science.'
+    }];
+
+  } catch(e) {
+    content.innerHTML = `<span style="color:var(--rose)">⚠ ${e.message || 'Network error — check your settings and connection.'}</span>`;
+  }
+  btn.disabled = false;
+}
+
+function buildAnalysisPrompt(statsText) {
+  return `You are a specialist diabetes clinician reviewing CGM and insulin pump data. Your analysis must be grounded in current evidence-based guidelines. Apply the following established benchmarks when interpreting the data:
+
+**Evidence-based reference thresholds (cite these explicitly where relevant):**
+- TIR ≥70% is the clinical target for most adults with T1D (ADA Standards of Care 2024; Battelino et al., Diabetes Care 2019). Note: the user has selected a target range of ${targetRange.low}–${targetRange.high} mmol/L. The tighter range (3.9–7.8) is consistent with stricter control goals sometimes used in pregnancy or highly motivated patients; the standard range (4.0–10.0) aligns with the ADA/EASD international consensus. Interpret TIR accordingly.
+- TBR <4% (<3.9 mmol/L) and <1% (<3.0 mmol/L) are safety targets (Danne et al., Diabetes Care 2019)
+- TAR <25% (>10.0 mmol/L) is recommended (Battelino et al. 2019)
+- CV ≤36% indicates acceptable glucose variability (Rodbard, Diabetes Technol Ther 2009; Monnier et al. 2017)
+- GMI is calculated as 3.31 + 0.02392 × mean glucose (mg/dL), then converted to mmol/mol via IFCC formula: (% − 2.15) × 10.929. Interpret against HbA1c targets (e.g. <53 mmol/mol / <7.0% for most adults with T1D per ADA 2024) (Bergenstal et al., Diabetes Care 2018)
+- Basal:bolus ratio is typically 40–60% basal in well-controlled pump therapy (NICE NG17; Walsh et al.)
+- Insulin sensitivity factor (ISF) rule of thumb: 100 / TDD (mmol/L drop per unit) — flag if correction boluses are frequent without carbs, suggesting ISF may be too weak
+- ICR is expressed as grams of carbohydrate per unit of insulin (e.g. 10 g/U means 1 unit covers 10g carbs). A higher number means less insulin-sensitive; typical range is 8–20 g/U. ICR adequacy: post-meal glucose returning to baseline within 3–4h is a marker of correct ratio (DAFNE methodology)
+- For closed-loop systems (CamAPS), persistent high or low patterns despite automation suggest the underlying settings (basal profile, ICR, ISF target) fed into the algorithm need adjustment, as these constrain the loop
+- If patient age and weight are provided, contextualise TDD/kg (typical range 0.4–0.7 U/kg/day for adults with T1D) and note if out of range
+
+**Your task:**
+Analyse the data below and provide a structured report with these sections:
+
+#### Overview of Glycaemic Control
+Compare TIR, TBR, TAR, CV, and GMI against the evidence-based thresholds above. State clearly whether each metric is within, above, or below target and what this means clinically.
+
+#### Diurnal Patterns
+Identify the 2–3 hours with highest average glucose and 2–3 hours with lowest average glucose. Flag any nocturnal hypoglycaemia risk (00–06h) or dawn phenomenon. Base this on the hourly averages provided.
+
+#### Insulin Delivery Assessment
+Evaluate the basal:bolus ratio. Comment on whether the correction dose frequency suggests ISF may need adjustment. Note if meal boluses appear consistently undersized or oversized based on post-meal patterns where inferable.
+
+#### Recommendations
+Give 3–5 specific, prioritised, evidence-based recommendations. For each, state: (a) what to change, (b) the rationale grounded in the data and published evidence, (c) the approximate magnitude of adjustment if calculable. Distinguish clearly between settings that the user can discuss adjusting in the CamAPS algorithm vs. general lifestyle factors.
+
+#### Encouraging Finding
+One concrete positive observation from the data.
+
+#### Important Notice
+End with a brief disclaimer that all recommendations are for informational purposes and must be reviewed and approved by the patient's diabetes care team before implementation. Do not suggest specific absolute insulin doses.
+
+Be concise but rigorous. Use precise language. Cite guideline sources inline (e.g., "ADA 2024", "Battelino et al. 2019") where you apply a threshold.
+
+Data:
+${statsText}`;
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(); }
+}
+
+function appendMsg(role, html) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `<div class="msg-avatar">${role === 'user' ? 'You' : 'GL'}</div><div class="msg-bubble">${html}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div.querySelector('.msg-bubble');
+}
+
+async function chatSend() {
+  const input = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+  const userText = input.value.trim();
+  if (!userText) return;
+
+  input.value = '';
+  sendBtn.disabled = true;
+  appendMsg('user', escHtml(userText));
+
+  const thinkBubble = appendMsg('assistant', '<div class="thinking"><span></span><span></span><span></span></div>');
+
+  const cfg = getProviderConfig();
+  const systemPrompt = `You are a specialist diabetes data assistant embedded in the GLAID dashboard. You have access to the patient's CGM and insulin pump data and a prior analysis. Your role is strictly limited to:
+1. Answering questions about the patient's glucose and insulin data shown in this session
+2. Explaining diabetes science, physiology, and management concepts relevant to the data
+3. Searching for and citing peer-reviewed scientific studies that support conclusions about the data${cfg.supportsSearch ? '' : '\n(Note: web search is not available with the current local model provider)'}
+
+You MUST NOT discuss unrelated topics. If asked about anything outside diabetes management and the patient's data, politely decline.
+
+When you search for studies, explain what you found and cite them with author, journal, and year. Integrate search findings naturally into your answer.
+
+Always remind the user that clinical decisions must be made with their diabetes care team. Be concise and precise.`;
+
+  chatHistory.push({ role: 'user', content: userText });
+
+  try {
+    const result = await callLLM(chatHistory, systemPrompt, 4096, cfg.supportsSearch);
+    const badge = result.searchUsed ? '<span class="search-badge">🔍 Web search used</span><br>' : '';
+    const localNote = !cfg.supportsSearch && currentProvider !== 'anthropic'
+      ? '<span class="search-badge" style="background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.3);color:var(--amber)">⚡ Local model — no web search</span><br>' : '';
+    thinkBubble.innerHTML = badge + localNote + formatSummary(result.text);
+    chatHistory.push({ role: 'assistant', content: result.text });
+  } catch(e) {
+    thinkBubble.innerHTML = `<span style="color:var(--rose)">⚠ ${e.message}</span>`;
+    chatHistory.pop();
+  }
+  sendBtn.disabled = false;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatSummary(text) {
+  return text
+    .replace(/#### (.+)/g, '<h4>$1</h4>')
+    .replace(/### (.+)/g, '<h4>$1</h4>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n- /g, '\n• ')
+    .replace(/\n/g, '<br>');
+}
+
+// ── TOD canvas tooltip + hour highlight ───────────────────────────────────────
+document.addEventListener('mousemove', (e) => {
+  // ── HOD (bolus/carbs/hypo) tooltip ──────────────────────────────────────────
+  const hodCanvas = document.getElementById('hodCanvas');
+  const hodTip = document.getElementById('hodTooltip');
+  if (hodCanvas && hodCanvas._hodGeom && hodTip) {
+    const hr = hodCanvas.getBoundingClientRect();
+    if (e.clientX >= hr.left && e.clientX <= hr.right && e.clientY >= hr.top && e.clientY <= hr.bottom) {
+      const { PAD, plotW } = hodCanvas._hodGeom;
+      const xRel = e.clientX - hr.left - PAD.left;
+      const h = Math.max(0, Math.min(23, Math.floor((xRel / plotW) * 24)));
+
+      // ── Hour highlight overlay ───────────────────────────────────────────────
+      const hodOverlay = document.getElementById('hodOverlay');
+      if (hodOverlay) {
+        const dpr = window.devicePixelRatio || 1;
+        const cssW = hodCanvas.offsetWidth;
+        const cssH = hodCanvas.offsetHeight;
+        hodOverlay.width  = cssW * dpr;
+        hodOverlay.height = cssH * dpr;
+        hodOverlay.style.width  = cssW + 'px';
+        hodOverlay.style.height = cssH + 'px';
+        const oc = hodOverlay.getContext('2d');
+        oc.clearRect(0, 0, hodOverlay.width, hodOverlay.height);
+        oc.save();
+        oc.scale(dpr, dpr);
+        const { toX } = hodCanvas._hodGeom;
+        const x0 = toX(h), x1 = toX(h + 1);
+        oc.fillStyle = 'rgba(0,212,177,0.10)';
+        oc.fillRect(x0, PAD.top, x1 - x0, cssH - PAD.top - PAD.bottom);
+        oc.strokeStyle = 'rgba(0,212,177,0.35)';
+        oc.lineWidth = 1;
+        oc.beginPath(); oc.moveTo(x0, PAD.top); oc.lineTo(x0, cssH - PAD.bottom); oc.stroke();
+        oc.beginPath(); oc.moveTo(x1, PAD.top); oc.lineTo(x1, cssH - PAD.bottom); oc.stroke();
+        oc.restore();
+      }
+
+      const d = hodCanvas._hodData;
+      const endLabel = h === 23 ? '00:00' : String(h + 1).padStart(2, '0') + ':00';
+      hodTip.style.display = 'block';
+      const tipW = 220;
+      const left = e.clientX + 14 + tipW > window.innerWidth ? e.clientX - tipW - 8 : e.clientX + 14;
+      hodTip.style.left = left + 'px';
+      hodTip.style.top  = (e.clientY - 10) + 'px';
+      hodTip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong><br>
+        <span style="color:#3b82f6">Carbs: ${d.avgCarbs[h].toFixed(1)} g/day (total ${d.hourCarbs[h].toFixed(0)}g)</span><br>
+        <span style="color:#a855f7">Bolus: ${d.avgBolus[h].toFixed(2)} U/day (total ${d.hourBolus[h].toFixed(2)}U)</span><br>
+        <span style="color:#f97316">Hypo Tx: ${d.hourHypo[h]} total (${d.avgHypo[h].toFixed(2)}/day · ${d.hypoCarbsVal}g each)</span>`;
+    } else {
+      hodTip.style.display = 'none';
+      const hodOverlay = document.getElementById('hodOverlay');
+      if (hodOverlay) hodOverlay.getContext('2d').clearRect(0, 0, hodOverlay.width, hodOverlay.height);
+    }
+  }
+  const canvas = document.getElementById('todCanvas');
+  const overlay = document.getElementById('todOverlay');
+  if (!canvas || !canvas._todGeom) return;
+  const tooltip = document.getElementById('bolusTooltip');
+  const rect = canvas.getBoundingClientRect();
+
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+    tooltip.style.display = 'none';
+    if (overlay) { const oc = overlay.getContext('2d'); oc.clearRect(0, 0, overlay.width, overlay.height); }
+    return;
+  }
+
+  const { PAD, plotW, toX, toY } = canvas._todGeom;
+  const xRel = e.clientX - rect.left - PAD.left;
+  const h = Math.max(0, Math.min(23, Math.floor((xRel / plotW) * 24)));
+  const s = canvas._todStats[h];
+
+  // ── Hour highlight overlay ─────────────────────────────────────────────────
+  if (overlay) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.offsetWidth;
+    const cssH = canvas.offsetHeight;
+    // Always sync to the live rendered canvas size
+    overlay.width  = cssW * dpr;
+    overlay.height = cssH * dpr;
+    overlay.style.width  = cssW + 'px';
+    overlay.style.height = cssH + 'px';
+    const oc = overlay.getContext('2d');
+    oc.clearRect(0, 0, overlay.width, overlay.height);
+    oc.save();
+    oc.scale(dpr, dpr);
+    const x0 = toX(h);
+    const x1 = toX(h + 1);
+    oc.fillStyle = 'rgba(0,212,177,0.10)';
+    oc.fillRect(x0, PAD.top, x1 - x0, cssH - PAD.top - PAD.bottom);
+    oc.strokeStyle = 'rgba(0,212,177,0.35)';
+    oc.lineWidth = 1;
+    oc.beginPath(); oc.moveTo(x0, PAD.top); oc.lineTo(x0, cssH - PAD.bottom); oc.stroke();
+    oc.beginPath(); oc.moveTo(x1, PAD.top); oc.lineTo(x1, cssH - PAD.bottom); oc.stroke();
+    oc.restore();
+  }
+
+  if (!s) { tooltip.style.display = 'none'; return; }
+  tooltip.style.display = 'block';
+  const tipW = 200;
+  const left = e.clientX + 14 + tipW > window.innerWidth ? e.clientX - tipW - 8 : e.clientX + 14;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top  = (e.clientY - 10) + 'px';
+  const basalVal = canvas._todBasal?.hourlyBasal?.[h];
+  const basalLine = basalVal != null ? `<br>Avg Basal: ${basalVal.toFixed(2)} U/h` : '';
+  const endLabel = h === 23 ? '00:00' : String(h + 1).padStart(2, '0') + ':00';
+  tooltip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong>
+    Median: ${s.median.toFixed(1)} mmol/L<br>
+    25–75th %ile: ${s.p25.toFixed(1)} – ${s.p75.toFixed(1)}<br>
+    5–95th %ile: ${s.p5.toFixed(1)} – ${s.p95.toFixed(1)}${basalLine}<br>
+    n = ${s.n} readings`;
+});
+
+document.addEventListener('mouseleave', () => {
+  const overlay = document.getElementById('todOverlay');
+  if (overlay) overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+});
+
+// Redraw TOD on resize
+let todResizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(todResizeTimer);
+  todResizeTimer = setTimeout(() => { if (dataLoaded) buildTOD(); }, 120);
+});
+
+// Init
+document.getElementById('dropZone').addEventListener('dragover', e => {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.add('loaded');
+});
+document.getElementById('dropZone').addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+</script>
+</body>
+</html>
