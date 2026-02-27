@@ -543,10 +543,10 @@
       <div class="stat-label">Total Daily Insulin</div>
       <div class="stat-value teal" id="statTDI">—<span class="stat-unit">U/day</span></div>
     </div>
-    <div class="stat-card" style="border-color:rgba(0,212,177,0.25)">
-      <div class="stat-label" style="color:var(--teal)">Insulin Sensitivity</div>
+    <div class="stat-card">
+      <div class="stat-label">Estimated Insulin Sensitivity</div>
       <div class="stat-value teal" id="statISF">—<span class="stat-unit">mmol/L/U</span></div>
-      <div class="stat-sub" id="statISFSub">ISF · 1700 rule</div>
+      <div class="stat-sub" id="statISFSub">ISF · 100/TDD rule</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Basal / Bolus</div>
@@ -562,7 +562,7 @@
       <div class="stat-label">Total Bolus Doses</div>
       <div class="stat-value" id="statBoluses">—</div>
     </div>
-    <div class="stat-card" style="border-color:rgba(249,115,22,0.3)">
+    <div class="stat-card">
       <div class="stat-label" style="color:#f97316">Hypo Treatments</div>
       <div class="stat-value" id="statHypos" style="color:#f97316">—</div>
       <div class="stat-sub" id="statHyposSub">0.05U boluses detected</div>
@@ -578,7 +578,7 @@
         <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(0,212,177,0.25);border:1px solid rgba(0,212,177,0.35)"></span>25–75th %ile</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal)"></span>Median</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:#f59e0b"></span>Avg Basal (U/h)</span>
-        <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal);opacity:0.6;border-bottom:2px dashed var(--teal)"></span>Suggested Basal</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal);opacity:0.6;border-bottom:2px dashed var(--teal)"></span>Adjusted Basal</span>
       </div>
     </div>
     <div style="position:relative;display:block">
@@ -586,7 +586,7 @@
       <canvas id="todOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
     </div>
     <div id="todFootnote" style="display:none;font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px">
-      * Suggested basal is derived from the avg basal by applying ±0.5/ISF U·h⁻¹ per mmol·L⁻¹·h⁻¹ of median glucose drift beyond 0.5 mmol·L⁻¹·h⁻¹ relative to target BG (<span id="todFootnoteTarget">—</span> mmol/L). Not a medical recommendation.
+      * Adjusted Basal is derived from the avg basal by adjusting the two preceding hours when the smoothed median glucose drifts beyond ±0.2 mmol·L⁻¹·h⁻¹ relative to target BG (<span id="todFootnoteTarget">—</span> mmol/L). The adjustment magnitude is 0.5/ISF U·h⁻¹ per mmol·L⁻¹·h⁻¹ of drift. <strong>This is not medical advice and is not a clinical recommendation.</strong> Always consult your diabetes care team before making any changes to your insulin therapy.
     </div>
   </div>
 
@@ -1203,7 +1203,7 @@ function renderChart() {
   }));
 
   if (mainChart) mainChart.destroy();
-  container.innerHTML = '<canvas id="mainCanvas"></canvas>';
+  container.innerHTML = '<div style="position:relative"><canvas id="mainCanvas"></canvas><canvas id="mainCrosshair" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas></div>';
   const ctx = document.getElementById('mainCanvas').getContext('2d');
 
   // Plugin: bolus flags
@@ -1307,17 +1307,17 @@ function renderChart() {
         {
           label: 'CGM (mmol/L)', data: cgmData, yAxisID: 'y-glc',
           borderColor: '#00d4b1', backgroundColor: 'transparent',
-          borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.3, order: 1,
+          borderWidth: 2, pointRadius: 0, pointHoverRadius: 0, tension: 0.3, order: 1,
         },
         {
           label: 'Basal Rate (U/h)', data: basalData, yAxisID: 'y-basal',
           borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)',
-          borderWidth: 1.5, pointRadius: 0, stepped: 'before', fill: true, order: 2,
+          borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0, stepped: 'before', fill: true, order: 2,
         },
         {
           label: 'IOB (U)', data: iobData, yAxisID: 'y-iob',
           borderColor: 'rgba(168,85,247,0.7)', backgroundColor: 'rgba(168,85,247,0.08)',
-          borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4, order: 3,
+          borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0, fill: true, tension: 0.4, order: 3,
         },
       ]
     },
@@ -1325,7 +1325,8 @@ function renderChart() {
       responsive: true,
       maintainAspectRatio: true,
       animation: { duration: 200 },
-      interaction: { mode: 'nearest', intersect: false },
+      events: [],
+      hover: { mode: null },
       plugins: {
         legend: { display: false },
         tooltip: { enabled: false },
@@ -1378,9 +1379,39 @@ function renderChart() {
   // Setup pan/zoom on the canvas
   setupZoomPan(document.getElementById('mainCanvas'));
 
-  // ── Custom tooltip ────────────────────────────────────────────────────────────
+  // ── Custom crosshair via overlay canvas (no chart redraws needed) ─────────────
   const mainTooltipEl = document.getElementById('mainChartTooltip');
   const mainCanvas = document.getElementById('mainCanvas');
+
+  function drawCrosshair(xPx) {
+    const overlay = document.getElementById('mainCrosshair');
+    if (!overlay || !mainChart) return;
+    const dpr = window.devicePixelRatio || 1;
+    const bcr = mainCanvas.getBoundingClientRect();
+    // Always explicitly match the overlay CSS size to the chart canvas
+    overlay.style.width  = bcr.width  + 'px';
+    overlay.style.height = bcr.height + 'px';
+    const physW = Math.round(bcr.width  * dpr);
+    const physH = Math.round(bcr.height * dpr);
+    if (overlay.width !== physW)  overlay.width  = physW;
+    if (overlay.height !== physH) overlay.height = physH;
+    const oc = overlay.getContext('2d');
+    oc.clearRect(0, 0, physW, physH);
+    if (xPx === null) return;
+    const xScale = mainChart.scales['x'];
+    if (!xScale) return;
+    oc.save();
+    oc.scale(dpr, dpr);
+    oc.strokeStyle = 'rgba(100,116,139,0.55)';
+    oc.lineWidth = 1;
+    oc.setLineDash([4, 3]);
+    oc.beginPath();
+    oc.moveTo(xPx, xScale.top);
+    oc.lineTo(xPx, xScale.bottom);
+    oc.stroke();
+    oc.setLineDash([]);
+    oc.restore();
+  }
 
   mainCanvas.addEventListener('mousemove', (e) => {
     if (!mainChart) return;
@@ -1391,46 +1422,60 @@ function renderChart() {
 
     const mouseX = e.clientX - rect.left;
     if (mouseX < xScale.left || mouseX > xScale.right) {
+      drawCrosshair(null);
       mainTooltipEl.style.display = 'none'; return;
     }
 
-    // Convert pixel → timestamp
+    drawCrosshair(mouseX);
+
+    // Convert pixel → timestamp (exact cursor position, no snapping)
     const ts = xScale.getValueForPixel(mouseX);
 
-    // Find nearest CGM point by binary search
-    let lo = 0, hi = rawCGM.length - 1, nearestCGM = null;
+    // Interpolate CGM value at ts between the two bracketing readings
+    let lo = 0, hi = rawCGM.length - 1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      const t = rawCGM[mid].ts.getTime();
-      if (t < ts) lo = mid + 1; else hi = mid - 1;
+      if (rawCGM[mid].ts.getTime() < ts) lo = mid + 1; else hi = mid - 1;
     }
-    const candidates = [rawCGM[lo - 1], rawCGM[lo]].filter(Boolean);
-    nearestCGM = candidates.reduce((best, r) =>
-      !best || Math.abs(r.ts.getTime() - ts) < Math.abs(best.ts.getTime() - ts) ? r : best, null);
-    if (!nearestCGM || Math.abs(nearestCGM.ts.getTime() - ts) > 10 * 60000) {
+    const after  = rawCGM[lo];
+    const before = rawCGM[lo - 1];
+    const GAP_LIMIT = 16 * 60000;
+    let glcInterp = null, glcTs = null;
+    if (before && after) {
+      const span = after.ts.getTime() - before.ts.getTime();
+      if (span <= GAP_LIMIT) {
+        const frac = (ts - before.ts.getTime()) / span;
+        glcInterp = before.glc + frac * (after.glc - before.glc);
+        glcTs = new Date(ts);
+      }
+    } else if (before && ts - before.ts.getTime() <= GAP_LIMIT) {
+      glcInterp = before.glc; glcTs = new Date(ts);
+    } else if (after && after.ts.getTime() - ts <= GAP_LIMIT) {
+      glcInterp = after.glc; glcTs = new Date(ts);
+    }
+    if (glcInterp === null) {
       mainTooltipEl.style.display = 'none'; return;
     }
 
-    // Find basal rate active at this timestamp
+    // Basal rate active at ts
     let basalRate = null;
     for (const b of rawBasal) {
-      if (b.ts.getTime() <= nearestCGM.ts.getTime()) basalRate = b.rate;
-      else break;
+      if (b.ts.getTime() <= ts) basalRate = b.rate; else break;
     }
 
-    // IOB at nearest CGM timestamp
-    const iob = calcIOB(nearestCGM.ts, rawBolus, diaHours);
+    // IOB at cursor timestamp
+    const iob = calcIOB(glcTs, rawBolus, diaHours);
 
-    // Boluses within ±8 min of cursor timestamp (not the snapped CGM point)
+    // Boluses within ±8 min of cursor
     const BOLUS_WIN = 8 * 60000;
     const nearbyBoluses = rawBolus.filter(b => Math.abs(b.ts.getTime() - ts) <= BOLUS_WIN);
 
     // Build HTML
-    const glcColor = nearestCGM.glc < targetRange.low ? '#ef4444'
-                   : nearestCGM.glc > targetRange.high ? '#f59e0b' : '#00d4b1';
-    const timeStr = nearestCGM.ts.toLocaleString('sv-SE').replace('T', ' ');
+    const glcColor = glcInterp < targetRange.low ? '#ef4444'
+                   : glcInterp > targetRange.high ? '#f59e0b' : '#00d4b1';
+    const timeStr = glcTs.toLocaleString('sv-SE').replace('T', ' ').slice(0, 16);
     let html = `<strong style="color:var(--teal)">${timeStr}</strong><br>`;
-    html += `<span style="color:${glcColor}">● CGM: ${nearestCGM.glc.toFixed(1)} mmol/L</span><br>`;
+    html += `<span style="color:${glcColor}">● CGM: ${glcInterp.toFixed(1)} mmol/L</span><br>`;
     if (basalRate !== null) html += `<span style="color:#f59e0b">▬ Basal: ${basalRate.toFixed(2)} U/h</span><br>`;
     html += `<span style="color:#a855f7">◑ IOB: ${iob.toFixed(2)} U</span>`;
 
@@ -1450,7 +1495,6 @@ function renderChart() {
     mainTooltipEl.innerHTML = html;
     mainTooltipEl.style.display = 'block';
 
-    // Position: flip left if near right edge
     const tipW = 260;
     const left = e.clientX + 16 + tipW > window.innerWidth
       ? e.clientX - tipW - 8 : e.clientX + 16;
@@ -1459,6 +1503,7 @@ function renderChart() {
   });
 
   mainCanvas.addEventListener('mouseleave', () => {
+    drawCrosshair(null);
     mainTooltipEl.style.display = 'none';
   });
 }
@@ -1541,11 +1586,11 @@ function updateStats() {
   document.getElementById('statCV').innerHTML = cv.toFixed(0) + '<span class="stat-unit">%CV</span>';
   document.getElementById('statTDI').innerHTML = tdi.toFixed(1) + '<span class="stat-unit">U/day</span>';
 
-  // ISF via 1700 rule (mmol/L per unit)
-  const isfMmol = tdi > 0 ? (1700 / 18.015) / tdi : null;
+  // ISF: 100/TDD rule for mmol/L (equivalent to 1800/TDD in mg/dL)
+  const isfMmol = tdi > 0 ? 100 / tdi : null;
   if (isfMmol !== null) {
     document.getElementById('statISF').innerHTML = isfMmol.toFixed(1) + '<span class="stat-unit">mmol/L/U</span>';
-    document.getElementById('statISFSub').textContent = `ISF · 1700÷${tdi.toFixed(1)}÷18 rule`;
+    document.getElementById('statISFSub').textContent = `100 ÷ ${tdi.toFixed(1)} U/day`;
   } else {
     document.getElementById('statISF').innerHTML = '—';
   }
@@ -1596,7 +1641,7 @@ function buildTOD(visCGM, visBasal, isfMmol) {
     const basalU = visBasal.reduce((s,b) => s + (b.units||0), 0);
     const bolusU = visBolus2.reduce((s,b) => s + (b.insulin||0), 0);
     const tdi2 = (basalU + bolusU) / days2;
-    isfMmol = tdi2 > 0 ? (1700 / 18.015) / tdi2 : null;
+    isfMmol = tdi2 > 0 ? 100 / tdi2 : null;
   }
 
   // ── Hourly basal: for each hour slot, find basal segments active during it ──
@@ -1919,39 +1964,37 @@ function buildTOD(visCGM, visBasal, isfMmol) {
 
     canvas._todBasal = { hourlyBasal, toYBasal };
 
-    // ── Suggested basal curve ──────────────────────────────────────────────────
+    // ── Adjusted Basal curve ───────────────────────────────────────────────────
     const targetBG = parseFloat(document.getElementById('targetBG').value) || 6.0;
     if (isfMmol && isfMmol > 0) {
-      // Use RAW (unsmoothed) hourly medians for rate-of-change so that realistic
-      // hour-to-hour swings (dawn phenomenon, post-meal rises, overnight drops)
-      // are visible — smMedian is Gaussian-smoothed and rarely exceeds 1 mmol/L/h.
-      const sugBasal = [...hourlyBasal]; // start from avg basal; null slots preserved
+      // Use Gaussian-smoothed hourly median for rate-of-change for a physiologically
+      // coherent curve — smMedian carries the overall diurnal pattern without
+      // single-hour noise spikes.
+      const adjBasal = [...hourlyBasal]; // start from avg basal; null slots preserved
       for (let h = 0; h < 24; h++) {
         const h1 = (h + 1) % 24;
-        if (rawMedian[h] == null || rawMedian[h1] == null) continue;
-        const rate = rawMedian[h1] - rawMedian[h]; // mmol/L change during hour h
-        const adjPerMmol = 0.5 / isfMmol;           // U/h per mmol/L/h excess drift
+        if (smMedian[h] == null || smMedian[h1] == null) continue;
+        const rate = smMedian[h1] - smMedian[h]; // mmol/L change during hour h
+        const adjPerMmol = 0.5 / isfMmol;         // U/h per mmol/L/h excess drift
 
-        if (rawMedian[h] <= targetBG && rate < -0.5) {
-          // Glucose at/below target and dropping fast → reduce basal in two preceding hours
-          const excess = Math.abs(rate) - 0.5;
-          const adj = adjPerMmol * excess;
+        if (smMedian[h] <= targetBG && rate < -0.2) {
+          // Glucose at/below target and dropping → reduce basal in two preceding hours
+          const adj = adjPerMmol * Math.abs(rate);
           const hm1 = (h - 1 + 24) % 24;
           const hm2 = (h - 2 + 24) % 24;
-          if (sugBasal[hm1] !== null) sugBasal[hm1] = Math.max(0, sugBasal[hm1] - adj);
-          if (sugBasal[hm2] !== null) sugBasal[hm2] = Math.max(0, sugBasal[hm2] - adj);
-        } else if (rawMedian[h] >= targetBG && rate > 0.5) {
-          // Glucose at/above target and rising fast → increase basal in two preceding hours
-          const excess = rate - 0.5;
-          const adj = adjPerMmol * excess;
+          if (adjBasal[hm1] !== null) adjBasal[hm1] = Math.max(0, adjBasal[hm1] - adj);
+          if (adjBasal[hm2] !== null) adjBasal[hm2] = Math.max(0, adjBasal[hm2] - adj);
+        } else if (smMedian[h] >= targetBG && rate > 0.2) {
+          // Glucose at/above target and rising → increase basal in two preceding hours
+          const adj = adjPerMmol * rate;
           const hm1 = (h - 1 + 24) % 24;
           const hm2 = (h - 2 + 24) % 24;
-          if (sugBasal[hm1] !== null) sugBasal[hm1] = sugBasal[hm1] + adj;
-          if (sugBasal[hm2] !== null) sugBasal[hm2] = sugBasal[hm2] + adj;
+          if (adjBasal[hm1] !== null) adjBasal[hm1] = adjBasal[hm1] + adj;
+          if (adjBasal[hm2] !== null) adjBasal[hm2] = adjBasal[hm2] + adj;
         }
       }
 
-      // Draw suggested basal as dashed teal line on the same basal y-axis
+      // Draw adjusted basal as dashed teal line on the same basal y-axis
       ctx.save();
       ctx.strokeStyle = 'rgba(0,212,177,0.75)';
       ctx.lineWidth = 1.5;
@@ -1960,9 +2003,9 @@ function buildTOD(visCGM, visBasal, isfMmol) {
       ctx.beginPath();
       let sbStarted = false;
       for (let h = 0; h < 24; h++) {
-        if (sugBasal[h] === null) { sbStarted = false; continue; }
+        if (adjBasal[h] === null) { sbStarted = false; continue; }
         const x1 = toX(h), x2 = toX(h + 1);
-        const y  = toYBasal(sugBasal[h]);
+        const y  = toYBasal(adjBasal[h]);
         if (!sbStarted) { ctx.moveTo(x1, y); sbStarted = true; }
         else ctx.lineTo(x1, y);
         ctx.lineTo(x2, y);
@@ -1971,7 +2014,7 @@ function buildTOD(visCGM, visBasal, isfMmol) {
       ctx.setLineDash([]);
       ctx.restore();
 
-      canvas._todBasal.suggestedBasal = sugBasal;
+      canvas._todBasal.suggestedBasal = adjBasal;
       canvas._todBasal.targetBG = targetBG;
       canvas._todBasal.isfMmol = isfMmol;
 
@@ -2863,7 +2906,7 @@ document.addEventListener('mousemove', (e) => {
   const basalVal = canvas._todBasal?.hourlyBasal?.[h];
   const basalLine = basalVal != null ? `<br>Avg Basal: ${basalVal.toFixed(2)} U/h` : '';
   const sugVal = canvas._todBasal?.suggestedBasal?.[h];
-  const sugLine = sugVal != null ? `<br><span style="color:rgba(0,212,177,0.85)">Suggested Basal: ${sugVal.toFixed(2)} U/h *</span>` : '';
+  const sugLine = sugVal != null ? `<br><span style="color:rgba(0,212,177,0.85)">Adjusted Basal: ${sugVal.toFixed(2)} U/h *</span>` : '';
   const endLabel = h === 23 ? '00:00' : String(h + 1).padStart(2, '0') + ':00';
   const nStr = s ? ` · n=${s.n}` : '';
   tooltip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong>
