@@ -1,9 +1,9 @@
 # GLAID — Glucose & Insulin AI Dashboard
 
-A single-file, browser-based dashboard for visualising and analysing Glooko CGM and insulin pump exports. No server, no installation, no data ever leaves your device (unless you choose to use a cloud AI provider).
+A single-file, browser-based dashboard for visualising and analysing Glooko CGM and insulin pump exports. No server, no installation, no data ever leaves your device (unless you actively choose to use a cloud AI provider).
 Chat with your data and extract insights!
 
-Currently tailored for Tandem pumps (see section Hypo Treatment Detection)
+Should work for most pumps but currently tailored for Tandem (see section Hypo Treatment Detection).
 
 ![GLAID Dashboard](https://img.shields.io/badge/version-1.0-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
