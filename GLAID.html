@@ -467,19 +467,24 @@
     </div>
     <div class="divider"></div>
     <div class="ctrl-group">
-      <span class="ctrl-label">Age:</span>
+      <span class="ctrl-label">Age</span>
       <input type="number" class="date-input" id="userAge" min="1" max="120" placeholder="—" style="width:52px;text-align:center">
       <span class="ctrl-label">yr</span>
-	  <div class="divider"></div>
-      <span class="ctrl-label" style="margin-left:6px">Weight:</span>
+      <span class="ctrl-label" style="margin-left:6px">Weight</span>
       <input type="number" class="date-input" id="userWeight" min="10" max="300" placeholder="—" style="width:58px;text-align:center">
       <span class="ctrl-label">kg</span>
     </div>
     <div class="divider"></div>
     <div class="ctrl-group">
-      <span class="ctrl-label" style="color:#f97316">🍬 Hypo Tx:</span>
-      <input type="number" class="date-input" id="hypoCarbs" min="1" max="100" placeholder="-" onchange="if(dataLoaded){renderChart();updateStats();}" style="width:52px;text-align:center;border-color:rgba(249,115,22,0.35);color:#f97316">
+      <span class="ctrl-label" style="color:#f97316">🍬 Hypo Tx</span>
+      <input type="number" class="date-input" id="hypoCarbs" min="1" max="100" value="15" onchange="if(dataLoaded){renderChart();updateStats();}" style="width:52px;text-align:center;border-color:rgba(249,115,22,0.35);color:#f97316">
       <span class="ctrl-label">g carbs</span>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label" style="color:var(--teal)">🎯 Target BG</span>
+      <input type="number" class="date-input" id="targetBG" min="3" max="12" value="6.0" step="0.1" onchange="if(dataLoaded){updateStats();}" style="width:58px;text-align:center;border-color:rgba(0,212,177,0.35);color:var(--teal)">
+      <span class="ctrl-label">mmol/L</span>
     </div>
   </div>
 
@@ -538,6 +543,11 @@
       <div class="stat-label">Total Daily Insulin</div>
       <div class="stat-value teal" id="statTDI">—<span class="stat-unit">U/day</span></div>
     </div>
+    <div class="stat-card" style="border-color:rgba(0,212,177,0.25)">
+      <div class="stat-label" style="color:var(--teal)">Insulin Sensitivity</div>
+      <div class="stat-value teal" id="statISF">—<span class="stat-unit">mmol/L/U</span></div>
+      <div class="stat-sub" id="statISFSub">ISF · 1700 rule</div>
+    </div>
     <div class="stat-card">
       <div class="stat-label">Basal / Bolus</div>
       <div class="stat-value" id="statBasalBolus">—</div>
@@ -568,11 +578,15 @@
         <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(0,212,177,0.25);border:1px solid rgba(0,212,177,0.35)"></span>25–75th %ile</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal)"></span>Median</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:#f59e0b"></span>Avg Basal (U/h)</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal);opacity:0.6;border-bottom:2px dashed var(--teal)"></span>Suggested Basal</span>
       </div>
     </div>
     <div style="position:relative;display:block">
       <canvas id="todCanvas" height="320" style="width:100%;display:block"></canvas>
       <canvas id="todOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+    </div>
+    <div id="todFootnote" style="display:none;font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px">
+      * Suggested basal is derived from the avg basal by applying ±0.5/ISF U·h⁻¹ per mmol·L⁻¹·h⁻¹ of median glucose drift beyond 0.5 mmol·L⁻¹·h⁻¹ relative to target BG (<span id="todFootnoteTarget">—</span> mmol/L). Not a medical recommendation.
     </div>
   </div>
 
@@ -607,6 +621,9 @@
       </button>
       <button class="ptab" id="ptab-openclaw" onclick="selectProvider('openclaw')">
         <span class="ptab-dot"></span>🦞 OpenClaw
+      </button>
+      <button class="ptab" id="ptab-lmstudio" onclick="selectProvider('lmstudio')">
+        <span class="ptab-dot"></span>🎞 LM Studio
       </button>
     </div>
 
@@ -656,6 +673,25 @@
       The browser requires CORS headers — if you get "Failed to fetch", the gateway is either not running or blocking cross-origin requests.
       Try adding a <code style="color:var(--teal)">--cors</code> flag or equivalent to the start command.
       <span id="openclawTestResult" style="margin-left:8px;font-weight:600"></span>
+    </div>
+
+    <!-- LM Studio -->
+    <div class="pconfig" id="pconfig-lmstudio" style="display:none">
+      <span class="api-key-label">Endpoint</span>
+      <input type="text" class="api-key-input" id="lmstudioEndpoint" value="http://localhost:1234" style="max-width:220px">
+      <span class="api-key-label">Model</span>
+      <input type="text" class="api-key-input" id="lmstudioModel" placeholder="loaded model identifier" style="max-width:220px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:var(--muted);white-space:nowrap;cursor:pointer">
+        <input type="checkbox" id="lmstudioSearch" checked style="accent-color:var(--teal)"> Web search (MCP)
+      </label>
+      <button class="btn" onclick="testLMStudio()" style="margin-left:6px">Test</button>
+    </div>
+    <div class="local-note" id="lmstudio-note" style="display:none">
+      <span class="warn">⚠</span> LM Studio must be running with the local server enabled (<code style="color:var(--teal)">lms server start</code>).
+      Enable CORS in <strong>LM Studio → Settings → Local Server → CORS</strong>.
+      For web search, configure an MCP server with a <code style="color:var(--teal)">web_search</code> tool in LM Studio's MCP settings — LM Studio will execute it server-side when the model calls it.
+      The model identifier must exactly match the one loaded in LM Studio (copy from the model card).
+      <span id="lmstudioTestResult" style="margin-left:8px;font-weight:600"></span>
     </div>
   </div>
 
@@ -1505,6 +1541,15 @@ function updateStats() {
   document.getElementById('statCV').innerHTML = cv.toFixed(0) + '<span class="stat-unit">%CV</span>';
   document.getElementById('statTDI').innerHTML = tdi.toFixed(1) + '<span class="stat-unit">U/day</span>';
 
+  // ISF via 1700 rule (mmol/L per unit)
+  const isfMmol = tdi > 0 ? (1700 / 18.015) / tdi : null;
+  if (isfMmol !== null) {
+    document.getElementById('statISF').innerHTML = isfMmol.toFixed(1) + '<span class="stat-unit">mmol/L/U</span>';
+    document.getElementById('statISFSub').textContent = `ISF · 1700÷${tdi.toFixed(1)}÷18 rule`;
+  } else {
+    document.getElementById('statISF').innerHTML = '—';
+  }
+
   const basalPct = (basalUnits + bolusUnits) > 0 ? Math.round(basalUnits / (basalUnits + bolusUnits) * 100) : null;
   const bolusPct = basalPct !== null ? 100 - basalPct : null;
   if (basalPct !== null) {
@@ -1536,15 +1581,22 @@ function updateStats() {
   else if (tir >= 50) tirEl.classList.add('amber');
   else tirEl.classList.add('red');
 
-  buildTOD(visCGM, visBasal);
+  buildTOD(visCGM, visBasal, isfMmol);
 }
 
-function buildTOD(visCGM, visBasal) {
+function buildTOD(visCGM, visBasal, isfMmol) {
   if (!visCGM) {
     const vMin = viewMin ?? rawCGM[0].ts.getTime();
     const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
     visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
     visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+    // Recompute ISF from visible data
+    const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+    const days2 = Math.max((vMax - vMin) / 86400000, 1/24);
+    const basalU = visBasal.reduce((s,b) => s + (b.units||0), 0);
+    const bolusU = visBolus2.reduce((s,b) => s + (b.insulin||0), 0);
+    const tdi2 = (basalU + bolusU) / days2;
+    isfMmol = tdi2 > 0 ? (1700 / 18.015) / tdi2 : null;
   }
 
   // ── Hourly basal: for each hour slot, find basal segments active during it ──
@@ -1598,9 +1650,13 @@ function buildTOD(visCGM, visBasal) {
 
   const canvas = document.getElementById('todCanvas');
   if (!canvas) return;
-  // DPI-aware sizing
+  // DPI-aware sizing — use getBoundingClientRect so the stored geometry always
+  // matches what the mousemove handler reads from the same API call.
   const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.parentElement.clientWidth - 40; // section padding
+  const bcr = canvas.getBoundingClientRect();
+  // Force 100% width first so bcr reflects the true available width
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
   const cssH = 320;
   canvas.width = cssW * dpr;
   canvas.height = cssH * dpr;
@@ -1862,6 +1918,72 @@ function buildTOD(visCGM, visBasal) {
     ctx.restore();
 
     canvas._todBasal = { hourlyBasal, toYBasal };
+
+    // ── Suggested basal curve ──────────────────────────────────────────────────
+    const targetBG = parseFloat(document.getElementById('targetBG').value) || 6.0;
+    if (isfMmol && isfMmol > 0) {
+      // Use RAW (unsmoothed) hourly medians for rate-of-change so that realistic
+      // hour-to-hour swings (dawn phenomenon, post-meal rises, overnight drops)
+      // are visible — smMedian is Gaussian-smoothed and rarely exceeds 1 mmol/L/h.
+      const sugBasal = [...hourlyBasal]; // start from avg basal; null slots preserved
+      for (let h = 0; h < 24; h++) {
+        const h1 = (h + 1) % 24;
+        if (rawMedian[h] == null || rawMedian[h1] == null) continue;
+        const rate = rawMedian[h1] - rawMedian[h]; // mmol/L change during hour h
+        const adjPerMmol = 0.5 / isfMmol;           // U/h per mmol/L/h excess drift
+
+        if (rawMedian[h] <= targetBG && rate < -0.5) {
+          // Glucose at/below target and dropping fast → reduce basal in two preceding hours
+          const excess = Math.abs(rate) - 0.5;
+          const adj = adjPerMmol * excess;
+          const hm1 = (h - 1 + 24) % 24;
+          const hm2 = (h - 2 + 24) % 24;
+          if (sugBasal[hm1] !== null) sugBasal[hm1] = Math.max(0, sugBasal[hm1] - adj);
+          if (sugBasal[hm2] !== null) sugBasal[hm2] = Math.max(0, sugBasal[hm2] - adj);
+        } else if (rawMedian[h] >= targetBG && rate > 0.5) {
+          // Glucose at/above target and rising fast → increase basal in two preceding hours
+          const excess = rate - 0.5;
+          const adj = adjPerMmol * excess;
+          const hm1 = (h - 1 + 24) % 24;
+          const hm2 = (h - 2 + 24) % 24;
+          if (sugBasal[hm1] !== null) sugBasal[hm1] = sugBasal[hm1] + adj;
+          if (sugBasal[hm2] !== null) sugBasal[hm2] = sugBasal[hm2] + adj;
+        }
+      }
+
+      // Draw suggested basal as dashed teal line on the same basal y-axis
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,212,177,0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      let sbStarted = false;
+      for (let h = 0; h < 24; h++) {
+        if (sugBasal[h] === null) { sbStarted = false; continue; }
+        const x1 = toX(h), x2 = toX(h + 1);
+        const y  = toYBasal(sugBasal[h]);
+        if (!sbStarted) { ctx.moveTo(x1, y); sbStarted = true; }
+        else ctx.lineTo(x1, y);
+        ctx.lineTo(x2, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      canvas._todBasal.suggestedBasal = sugBasal;
+      canvas._todBasal.targetBG = targetBG;
+      canvas._todBasal.isfMmol = isfMmol;
+
+      // Show footnote
+      const fn = document.getElementById('todFootnote');
+      const ft = document.getElementById('todFootnoteTarget');
+      if (fn) { fn.style.display = 'block'; ft.textContent = targetBG.toFixed(1); }
+    } else {
+      canvas._todBasal.suggestedBasal = null;
+      const fn = document.getElementById('todFootnote');
+      if (fn) fn.style.display = 'none';
+    }
   } else {
     canvas._todBasal = null;
   }
@@ -1923,9 +2045,10 @@ function buildBolusHOD(visBolus, vMin, vMax) {
   const avgBolus = hourBolus.map(v => v / days);
   const avgHypo  = hourHypo.map(v => v / days);
 
-  // DPI-aware sizing
+  // DPI-aware sizing — use getBoundingClientRect so geometry matches mousemove reads
   const dpr  = window.devicePixelRatio || 1;
-  const cssW = canvas.parentElement.clientWidth - 40;
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
   const cssH = 240;
   canvas.width  = cssW * dpr;
   canvas.height = cssH * dpr;
@@ -2091,7 +2214,7 @@ function stddev(arr) {
 // ─── Provider Management ──────────────────────────────────────────────────────
 function selectProvider(p) {
   currentProvider = p;
-  ['anthropic','ollama','llamacpp','openclaw'].forEach(id => {
+  ['anthropic','ollama','llamacpp','openclaw','lmstudio'].forEach(id => {
     document.getElementById(`ptab-${id}`).classList.toggle('active', id === p);
     const cfg = document.getElementById(`pconfig-${id}`);
     if (cfg) cfg.style.display = id === p ? 'flex' : 'none';
@@ -2126,6 +2249,18 @@ function getProviderConfig() {
       model: modelName,
       label: 'llama.cpp',
       supportsSearch: false,
+    };
+  } else if (currentProvider === 'lmstudio') {
+    const base = (document.getElementById('lmstudioEndpoint').value.trim() || 'http://localhost:1234');
+    const model = document.getElementById('lmstudioModel').value.trim() || 'local';
+    const useSearch = document.getElementById('lmstudioSearch').checked;
+    return {
+      provider: 'lmstudio',
+      endpoint: base.replace(/\/$/, '') + '/v1/chat/completions',
+      modelsEndpoint: base.replace(/\/$/, '') + '/v1/models',
+      model,
+      label: '🎞 LM Studio',
+      supportsSearch: useSearch,
     };
   } else {
     // openclaw
@@ -2178,6 +2313,30 @@ async function testOpenClaw() {
     } else {
       resultEl.textContent = '✗ ' + e.message;
     }
+  }
+}
+
+async function testLMStudio() {
+  const base = (document.getElementById('lmstudioEndpoint').value.trim() || 'http://localhost:1234');
+  const resultEl = document.getElementById('lmstudioTestResult');
+  resultEl.style.color = 'var(--muted)';
+  resultEl.textContent = '⏳ Testing…';
+  try {
+    const res = await fetch(base.replace(/\/$/, '') + '/v1/models', { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    if (res.ok) {
+      const data = await res.json();
+      const models = data?.data?.map(m => m.id) ?? [];
+      resultEl.style.color = 'var(--teal)';
+      resultEl.textContent = models.length
+        ? `✓ reachable — loaded: ${models.slice(0,2).join(', ')}`
+        : '✓ reachable (no model loaded yet)';
+    } else {
+      resultEl.style.color = 'var(--amber)';
+      resultEl.textContent = `⚠ HTTP ${res.status}`;
+    }
+  } catch(e) {
+    resultEl.style.color = 'var(--rose)';
+    resultEl.textContent = '✗ Cannot reach LM Studio — not running or CORS blocked';
   }
 }
 
@@ -2237,8 +2396,98 @@ async function callLLM(messages, systemPrompt, maxTokens, useSearch = false) {
       priceNote: '~10.50 SEK/USD · Sonnet 4: $3/$15 per MTok in/out',
       modelLabel: cfg.model, elapsed };
 
+  } else if (cfg.provider === 'lmstudio') {
+    // LM Studio: OpenAI-compatible with optional MCP web search.
+    // When web search is enabled, we declare a web_search function tool.
+    // LM Studio executes it via its configured MCP server and returns a
+    // tool_calls response; we send back the result and loop until done.
+    const oaiMsgs = systemPrompt
+      ? [{ role: 'system', content: systemPrompt }, ...messages]
+      : [...messages];
+
+    const webSearchTool = {
+      type: 'function',
+      function: {
+        name: 'web_search',
+        description: 'Search the web for current information. Use for recent events, studies, or anything that may have changed.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search query' }
+          },
+          required: ['query']
+        }
+      }
+    };
+
+    const headers = { 'Content-Type': 'application/json' };
+    let conversationMsgs = [...oaiMsgs];
+    let finalText = '';
+    let searchUsed = false;
+    const MAX_ROUNDS = 5;
+
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const body = {
+        model: cfg.model,
+        max_tokens: maxTokens,
+        messages: conversationMsgs,
+      };
+      if (useSearch && cfg.supportsSearch) {
+        body.tools = [webSearchTool];
+        body.tool_choice = 'auto';
+      }
+
+      let res;
+      try {
+        res = await fetch(cfg.endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+      } catch (networkErr) {
+        throw new Error(
+          `Cannot reach LM Studio at ${cfg.endpoint}. ` +
+          `Make sure the server is running (lms server start) and that CORS is enabled ` +
+          `in LM Studio → Settings → Local Server → CORS.\n(${networkErr.message})`
+        );
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || `LM Studio API error ${res.status}`);
+
+      const choice = data.choices?.[0];
+      const msg = choice?.message;
+
+      // Accumulate any text in this turn
+      if (msg?.content) finalText += msg.content;
+
+      // If the model called tools, send results back and continue the loop
+      if (choice?.finish_reason === 'tool_calls' && msg?.tool_calls?.length) {
+        searchUsed = true;
+        conversationMsgs.push({ role: 'assistant', content: msg.content ?? null, tool_calls: msg.tool_calls });
+        for (const tc of msg.tool_calls) {
+          // LM Studio executes the MCP tool server-side; we send back a
+          // placeholder so the loop continues — the actual search result was
+          // already incorporated by LM Studio before returning tool_calls.
+          conversationMsgs.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            name: tc.function?.name ?? 'web_search',
+            content: '(search executed by LM Studio MCP server)',
+          });
+        }
+        continue; // next round will get the model's follow-up
+      }
+
+      break; // stop = finish_reason is 'stop' or similar
+    }
+
+    const elapsed = (Date.now() - t0) / 1000;
+    const inputTok  = 0; // LM Studio may not return usage
+    const outputTok = 0;
+    const tps = '—';
+
+    return { text: finalText, searchUsed, inputTok, outputTok, tps,
+      costDisplay: '0.000', costUnit: 'SEK (local)',
+      priceNote: `Running locally — no API cost · ${cfg.label}`,
+      modelLabel: `${cfg.label} / ${cfg.model}`, elapsed };
+
   } else {
-    // OpenAI-compatible (Ollama / llama.cpp / OpenClaw)
     const oaiMsgs = systemPrompt
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : messages;
@@ -2521,8 +2770,9 @@ document.addEventListener('mousemove', (e) => {
       const hodOverlay = document.getElementById('hodOverlay');
       if (hodOverlay) {
         const dpr = window.devicePixelRatio || 1;
-        const cssW = hodCanvas.offsetWidth;
-        const cssH = hodCanvas.offsetHeight;
+        const canvasBcr = hodCanvas.getBoundingClientRect();
+        const cssW = canvasBcr.width;
+        const cssH = canvasBcr.height;
         hodOverlay.width  = cssW * dpr;
         hodOverlay.height = cssH * dpr;
         hodOverlay.style.width  = cssW + 'px';
@@ -2571,17 +2821,18 @@ document.addEventListener('mousemove', (e) => {
     return;
   }
 
-  const { PAD, plotW, toX, toY } = canvas._todGeom;
+  const { PAD, plotW, toX, toY, smMedian, smP5, smP95, smP25, smP75 } = canvas._todGeom;
   const xRel = e.clientX - rect.left - PAD.left;
   const h = Math.max(0, Math.min(23, Math.floor((xRel / plotW) * 24)));
-  const s = canvas._todStats[h];
+  const s = canvas._todStats[h]; // for raw n count
 
   // ── Hour highlight overlay ─────────────────────────────────────────────────
   if (overlay) {
     const dpr = window.devicePixelRatio || 1;
-    const cssW = canvas.offsetWidth;
-    const cssH = canvas.offsetHeight;
-    // Always sync to the live rendered canvas size
+    // Always match overlay to the live canvas bounding size
+    const canvasBcr = canvas.getBoundingClientRect();
+    const cssW = canvasBcr.width;
+    const cssH = canvasBcr.height;
     overlay.width  = cssW * dpr;
     overlay.height = cssH * dpr;
     overlay.style.width  = cssW + 'px';
@@ -2601,7 +2852,9 @@ document.addEventListener('mousemove', (e) => {
     oc.restore();
   }
 
-  if (!s) { tooltip.style.display = 'none'; return; }
+  // Show tooltip using smoothed values (matching the drawn curves)
+  const med = smMedian[h], p25 = smP25[h], p75 = smP75[h], p5 = smP5[h], p95 = smP95[h];
+  if (med == null) { tooltip.style.display = 'none'; return; }
   tooltip.style.display = 'block';
   const tipW = 200;
   const left = e.clientX + 14 + tipW > window.innerWidth ? e.clientX - tipW - 8 : e.clientX + 14;
@@ -2609,12 +2862,15 @@ document.addEventListener('mousemove', (e) => {
   tooltip.style.top  = (e.clientY - 10) + 'px';
   const basalVal = canvas._todBasal?.hourlyBasal?.[h];
   const basalLine = basalVal != null ? `<br>Avg Basal: ${basalVal.toFixed(2)} U/h` : '';
+  const sugVal = canvas._todBasal?.suggestedBasal?.[h];
+  const sugLine = sugVal != null ? `<br><span style="color:rgba(0,212,177,0.85)">Suggested Basal: ${sugVal.toFixed(2)} U/h *</span>` : '';
   const endLabel = h === 23 ? '00:00' : String(h + 1).padStart(2, '0') + ':00';
+  const nStr = s ? ` · n=${s.n}` : '';
   tooltip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong>
-    Median: ${s.median.toFixed(1)} mmol/L<br>
-    25–75th %ile: ${s.p25.toFixed(1)} – ${s.p75.toFixed(1)}<br>
-    5–95th %ile: ${s.p5.toFixed(1)} – ${s.p95.toFixed(1)}${basalLine}<br>
-    n = ${s.n} readings`;
+    Median: ${med.toFixed(1)} mmol/L<br>
+    25–75th %ile: ${p25.toFixed(1)} – ${p75.toFixed(1)}<br>
+    5–95th %ile: ${p5.toFixed(1)} – ${p95.toFixed(1)}${basalLine}${sugLine}<br>
+    <span style="color:var(--muted)">${nStr.slice(3)}</span>`;
 });
 
 document.addEventListener('mouseleave', () => {
