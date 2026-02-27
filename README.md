@@ -47,6 +47,7 @@ Statistics, the HOD plots, and AI analysis all update live as you pan or zoom th
   | **Ollama** | Any locally-running model. Start with `OLLAMA_ORIGINS="*" ollama serve`. |
   | **llama.cpp** | HTTP server mode. Add `--cors-allow-origins "*"` to your server command. |
   | **OpenClaw** | OpenAI-compatible gateway. Run `openclaw gateway --port 18789`. |
+  | **LM Studio** | LM Studio compatibility. Run LM Studio server with CORS enabled. |
 
 ### Controls
 - **Range presets** — 1D, 2D, 3D, 1W, 2W, 4W, All
