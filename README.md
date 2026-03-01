@@ -88,7 +88,7 @@ The export format is compatible with pumps supported by Glooko.
 
 ## Hypo Treatment Detection
 
-GLAID treats any bolus of **exactly 0.05 U** with no associated carbohydrate input as a hypo treatment signal. This convention is used by CamAPS FX to log manual carbohydrate interventions without delivering insulin. When such a bolus is detected:
+GLAID treats any bolus of **exactly 0.05 U** with no associated carbohydrate input as a hypo treatment signal. This is a method we use with Tandem Control-IQ to block the pump from giving extra boluses due to the rapid glucose rise and to log manual carbohydrate interventions while delivering as little insulin as possible. When such a bolus is detected:
 
 - The chart flag turns **orange** and is labelled with the configured carb dose rather than the bolus amount
 - The statistics card counts these events separately from corrections
