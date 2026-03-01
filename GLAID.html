@@ -840,9 +840,9 @@ function parseCSV(text, rowParser) {
   // Skip header row 1 (name/date range), find actual header
   let headerIdx = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('Timestamp')) { headerIdx = i; break; }
+    if (lines[i].toLowerCase().startsWith('timestamp')) { headerIdx = i; break; }
   }
-  const headers = lines[headerIdx].split(',').map(h => h.trim());
+  const headers = lines[headerIdx].split(',').map(h => h.trim().toLowerCase());
   const results = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const vals = splitCSVLine(lines[i]);
@@ -870,30 +870,73 @@ function splitCSVLine(line) {
 
 function parseDate(str) {
   if (!str) return null;
-  const d = new Date(str.replace(' ', 'T'));
+  str = str.trim();
+
+  // Try the formats Glooko is known to export, most common first.
+  // Always parse component-by-component to avoid timezone/locale ambiguity.
+
+  let m;
+
+  // ISO-like with space or T separator: YYYY-MM-DD HH:MM:SS  /  YYYY-MM-DDTHH:MM:SS
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+
+  // ISO date only: YYYY-MM-DD
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+
+  // DD/MM/YYYY HH:MM:SS  or  DD/MM/YYYY HH:MM
+  m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD/MM/YYYY
+  m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+
+  // MM/DD/YYYY HH:MM:SS  or  MM/DD/YYYY HH:MM  (US format)
+  m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5], +(m[6]||0));
+
+  // MM/DD/YYYY
+  m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return new Date(+m[3], +m[1]-1, +m[2]);
+
+  // DD-MM-YYYY HH:MM:SS  /  DD-MM-YYYY HH:MM
+  m = str.match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD-MM-YYYY
+  m = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+
+  // Last resort: native Date (handles RFC strings, etc.)
+  const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
 
 function parseCGMRow(obj) {
-  const ts = parseDate(obj['Timestamp']);
-  const glc = parseFloat(obj['CGM Glucose Value (mmol/l)'] || obj['CGM Glucose Value (mg/dl)'] || 0);
+  const ts = parseDate(obj['timestamp']);
+  const glc = parseFloat(
+    obj['cgm glucose value (mmol/l)'] ||
+    obj['cgm glucose value (mg/dl)']  || 0
+  );
   if (!ts || isNaN(glc) || glc <= 0) return null;
   return { ts, glc };
 }
 
 function parseBasalRow(obj) {
-  const ts = parseDate(obj['Timestamp']);
-  const dur = parseFloat(obj['Duration (minutes)'] || 0);
-  const rate = parseFloat(obj['Rate'] || 0);
+  const ts = parseDate(obj['timestamp']);
+  const dur = parseFloat(obj['duration (minutes)'] || 0);
+  const rate = parseFloat(obj['rate'] || 0);
   if (!ts) return null;
   const units = dur / 60 * rate;
   return { ts, dur, rate, units };
 }
 
 function parseBolusRow(obj) {
-  const ts = parseDate(obj['Timestamp']);
-  const carbs = parseFloat(obj['Carbs Input (g)'] || 0);
-  const insulin = parseFloat(obj['Insulin Delivered (U)'] || 0);
+  const ts = parseDate(obj['timestamp']);
+  const carbs = parseFloat(obj['carbs input (g)'] || 0);
+  const insulin = parseFloat(obj['insulin delivered (u)'] || 0);
   if (!ts) return null;
   return { ts, carbs, insulin };
 }
