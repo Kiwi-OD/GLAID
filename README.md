@@ -155,7 +155,9 @@ GLAID is a personal data visualisation tool intended to help you explore your ow
 
 ## License
 
-Currently no-license. Will update when/if this is released to public.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+You are free to use, modify, and distribute this software, provided that any modified version that is made available over a network also makes its source code available under the same licence. See [https://www.gnu.org/licenses/agpl-3.0.html](https://www.gnu.org/licenses/agpl-3.0.html) for the full licence text.
 
 ---
 
