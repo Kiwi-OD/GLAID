@@ -894,15 +894,16 @@ function parseCSV(text, rowParser) {
   // Skip header row 1 (name/date range), find actual header
   let headerIdx = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].toLowerCase().startsWith('timestamp')) { headerIdx = i; break; }
+    if (lines[i].toLowerCase().replace(/^"/,'').startsWith('timestamp')) { headerIdx = i; break; }
   }
-  const headers = lines[headerIdx].split(',').map(h => h.trim().toLowerCase());
+  const headers = splitCSVLine(lines[headerIdx])
+    .map(h => h.trim().replace(/^"|"$/g, '').trim().toLowerCase());
   const results = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const vals = splitCSVLine(lines[i]);
     if (vals.length < 2) continue;
     const obj = {};
-    headers.forEach((h, idx) => { obj[h] = (vals[idx] || '').trim(); });
+    headers.forEach((h, idx) => { obj[h] = (vals[idx] || '').trim().replace(/^"|"$/g, '').trim(); });
     const row = rowParser(obj);
     if (row) results.push(row);
   }
