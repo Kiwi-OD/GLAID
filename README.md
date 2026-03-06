@@ -5,7 +5,7 @@ Chat with your data and extract insights!
 
 Should work for most pumps but currently tailored for Tandem (see section Hypo Treatment Detection).
 
-![GLAID Dashboard](https://img.shields.io/badge/version-1.0-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
+![GLAID Dashboard](https://img.shields.io/badge/version-1.1-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
 ---
 
@@ -17,8 +17,9 @@ Should work for most pumps but currently tailored for Tandem (see section Hypo T
   - 🔵 **Meal bolus** — blue flag showing grams of carbohydrate and units delivered
   - 🔴 **Correction bolus** — red flag showing units delivered
   - 🟠 **Hypo treatment** — orange flag (boluses of exactly 0.05 U), labelled with the configured carbohydrate amount
-- **Glucose by Hour of Day** — percentile curves (5th/25th/median/75th/95th) with average basal rate overlay. Hover to highlight the hour slot and see a detailed tooltip. Curves extend to 00:00 for a complete 24-hour view.
+- **Glucose by Hour of Day** — percentile bands (5–95th, 25–75th), smoothed median, raw (unsmoothed) median, and mean glucose curves. Average basal rate and an **Adjusted Basal** suggestion are overlaid on a right-hand axis. A basal info box shows Avg Basal/day, Adjusted Basal/day, and the difference. Hover to highlight the hour slot and see a detailed tooltip showing both smoothed and raw median values. Curves extend to 00:00 for a complete 24-hour view.
 - **Insulin, Carbs & Hypos by Hour of Day** — side-by-side bar chart showing average grams of carbohydrate, average bolus units, and hypo treatment frequency per hour. Hovering highlights the hour slot across both HOD plots simultaneously.
+- **Post-Meal Glucose Change by Hour of Day** — for each meal bolus, plots Δ glucose at +3 h and +4 h after the bolus time, bucketed by the hour the bolus was taken. Dots sit at the exact bolus timestamp. Tooltip shows the mean Δ at each offset, meal count, and average carbohydrate-to-insulin ratio (ICR) in g/U for that hour.
 
 ### Statistics (always reflect the visible chart window)
 | Metric | Description |
@@ -34,6 +35,7 @@ Should work for most pumps but currently tailored for Tandem (see section Hypo T
 | Avg Carbs / Day | Mean grams logged per day from bolus records |
 | Total Bolus Doses | Count of all bolus events |
 | Hypo Treatments | Count, frequency, and configured carb dose |
+| Adjusted Basal | Drift- and correction-informed suggested basal (U/day) vs avg basal |
 
 Statistics, the HOD plots, and AI analysis all update live as you pan or zoom the main chart.
 
@@ -124,6 +126,30 @@ GLAID is a personal data visualisation tool intended to help you explore your ow
 - **Single HTML file** — everything including all JavaScript and CSS is self-contained
 - **No cookies, no localStorage, no telemetry** — all state is in-memory only
 - **Responsive** — works on desktop and tablet; touch pan and pinch-to-zoom supported on the main chart
+
+---
+
+## Changelog
+
+### v1.1 (2026-03-03 – 2026-03-06)
+
+**Glucose by Hour of Day — new curves**
+- Added **mean glucose curve** (dashed blue) alongside the existing smoothed median.
+- Added **raw (unsmoothed) median** (faint dashed teal) so the effect of Gaussian smoothing is directly visible. Tooltip shows both values.
+
+**Adjusted Basal suggestion**
+- Added an **Adjusted Basal** curve (dashed teal, right axis) to the Glucose by Hour of Day plot. Two components are applied to the average basal rate for each hour *h*:
+  - *Glucose drift*: `Δ = median[h+3] − median[h]`; add `(1/3) × Δ / ISF` to each of hours h, h+1, h+2.
+  - *Correction boluses*: insulin-only boluses (excl. 0.05 U hypo markers) are averaged per hour and distributed as `C(h) / 3` over the 3 preceding hours.
+  - All rates are floored at 0. This is **not a clinical recommendation**.
+- Added a **basal info box** showing Avg Basal/day, Adjusted Basal/day, and the difference in U.
+- Removed the **Target BG** input (was only used by the previous adjusted basal formula).
+
+**Post-Meal Glucose Change by Hour of Day (new chart)**
+- Replaced the glucose-vs-prior-basal scatter plot with a chart showing Δ glucose at +3 h and +4 h after each meal bolus, grouped by the hour the bolus was taken.
+- Dots are placed at the exact fractional bolus timestamp (not bucketed to midpoints).
+- Curves connect raw per-hour means (no Gaussian smoothing).
+- Tooltip includes Δ at +3 h, Δ at +4 h, meal count, and average **ICR (g/U)** for that hour.
 
 ---
 

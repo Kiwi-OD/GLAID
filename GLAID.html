@@ -480,12 +480,7 @@
       <input type="number" class="date-input" id="hypoCarbs" min="1" max="100" value="15" onchange="if(dataLoaded){renderChart();updateStats();}" style="width:52px;text-align:center;border-color:rgba(249,115,22,0.35);color:#f97316">
       <span class="ctrl-label">g carbs</span>
     </div>
-    <div class="divider"></div>
-    <div class="ctrl-group">
-      <span class="ctrl-label" style="color:var(--teal)">🎯 Target BG</span>
-      <input type="number" class="date-input" id="targetBG" min="3" max="12" value="6.0" step="0.1" onchange="if(dataLoaded){updateStats();}" style="width:58px;text-align:center;border-color:rgba(0,212,177,0.35);color:var(--teal)">
-      <span class="ctrl-label">mmol/L</span>
-    </div>
+
   </div>
 
   <!-- Main chart -->
@@ -576,7 +571,9 @@
       <div class="tod-legend">
         <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(0,212,177,0.12);border:1px solid rgba(0,212,177,0.2)"></span>5–95th %ile</span>
         <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(0,212,177,0.25);border:1px solid rgba(0,212,177,0.35)"></span>25–75th %ile</span>
-        <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal)"></span>Median</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal)"></span>Median (smoothed)</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:rgba(0,212,177,0.45);border-bottom:2px dashed rgba(0,212,177,0.45)"></span>Median (raw)</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:#3b82f6"></span>Mean</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:#f59e0b"></span>Avg Basal (U/h)</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal);opacity:0.6;border-bottom:2px dashed var(--teal)"></span>Adjusted Basal</span>
       </div>
@@ -585,8 +582,45 @@
       <canvas id="todCanvas" height="320" style="width:100%;display:block"></canvas>
       <canvas id="todOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
     </div>
-    <div id="todFootnote" style="display:none;font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px">
-      * Adjusted Basal is derived from the avg basal by adjusting the two preceding hours when the smoothed median glucose drifts beyond ±0.2 mmol·L⁻¹·h⁻¹ relative to target BG (<span id="todFootnoteTarget">—</span> mmol/L). The adjustment magnitude is 0.5/ISF U·h⁻¹ per mmol·L⁻¹·h⁻¹ of drift. <strong>This is not medical advice and is not a clinical recommendation.</strong> Always consult your diabetes care team before making any changes to your insulin therapy.
+    <div id="basalInfoBox" style="display:none;margin-top:10px;gap:12px;flex-wrap:wrap">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:0.75rem;display:flex;flex-direction:column;gap:2px">
+        <span style="color:var(--muted);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em">Avg Basal / day</span>
+        <span id="basalTotalLabel" style="color:var(--amber);font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700">—</span>
+      </div>
+      <div style="background:var(--surface2);border:1px solid rgba(0,212,177,0.3);border-radius:8px;padding:8px 16px;font-size:0.75rem;display:flex;flex-direction:column;gap:2px">
+        <span style="color:var(--muted);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em">Adjusted Basal / day</span>
+        <span id="adjBasalTotalLabel" style="color:var(--teal);font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700">—</span>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:0.75rem;display:flex;flex-direction:column;gap:2px">
+        <span style="color:var(--muted);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em">Difference</span>
+        <span id="basalDiffLabel" style="font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700">—</span>
+      </div>
+    </div>
+    <div id="todFootnote" style="display:none;font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.8">
+      <span style="color:var(--teal);font-weight:500">Adjusted Basal formula</span><br>
+      <span style="display:inline-block;margin:4px 0 4px 8px">
+        For each hour <i>h</i> &mdash; two additive corrections:<br>
+        <span style="display:inline-block;margin-left:16px;margin-top:2px">
+          <b>1. Glucose drift</b><br>
+          <span style="display:inline-block;margin-left:12px">
+            &Delta; = median<sub>h+3</sub> &minus; median<sub>h</sub> &nbsp;<span style="color:var(--muted)">(mmol/L over 3 h)</span><br>
+            B<sub>adj</sub>(h) &nbsp;= B<sub>avg</sub>(h) &nbsp;+ &frac13; &times; &Delta; / ISF<br>
+            B<sub>adj</sub>(h+1) = B<sub>avg</sub>(h+1) + &frac13; &times; &Delta; / ISF<br>
+            B<sub>adj</sub>(h+2) = B<sub>avg</sub>(h+2) + &frac13; &times; &Delta; / ISF
+          </span><br>
+          <b>2. Correction boluses</b><br>
+          <span style="display:inline-block;margin-left:12px">
+            C(h) = avg correction dose at hour h &nbsp;<span style="color:var(--muted)">(U/h equiv.)</span><br>
+            B<sub>adj</sub>(h&minus;1) += C(h) / 3<br>
+            B<sub>adj</sub>(h&minus;2) += C(h) / 3<br>
+            B<sub>adj</sub>(h&minus;3) += C(h) / 3
+          </span>
+        </span>
+      </span><br>
+      <span style="color:var(--muted)">Example &mdash; drift: ISF = 9, median rises 0.7 mmol/L from 13:00 to 16:00 &rarr; add <span style="color:var(--text)">+0.026 U/h</span> to each of 13:00&ndash;16:00.</span><br>
+      <span style="color:var(--muted)">Example &mdash; correction: 0.3 U bolus at 15:00 &rarr; add <span style="color:var(--text)">+0.1 U/h</span> to each of 12:00&ndash;15:00.</span><br>
+      <span style="color:var(--muted)">Median values are Gaussian-smoothed. All rates floored at 0.</span><br><br>
+      <strong>This is not medical advice.</strong> Always consult your diabetes care team before adjusting insulin therapy.
     </div>
   </div>
 
@@ -605,6 +639,25 @@
       <canvas id="hodOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
     </div>
     <div id="hodTooltip" class="bolus-tooltip" style="max-width:220px"></div>
+  </div>
+
+  <!-- Post-meal glucose response by hour of day -->
+  <div class="tod-section" id="scatterSection" style="display:none">
+    <div class="tod-header">
+      <div class="tod-title">Post-Meal Glucose Change by Hour of Day</div>
+      <div class="tod-legend">
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:#a855f7"></span>Δ glc at +3 h (mean)</span>
+        <span class="tod-leg-item"><span class="tod-leg-line" style="background:#3b82f6"></span>Δ glc at +4 h (mean)</span>
+        <span class="tod-leg-item"><span class="tod-leg-dot" style="background:#a855f7;opacity:0.45;width:8px;height:8px;border-radius:50%;display:inline-block"></span>Individual meals</span>
+        <span style="font-size:0.68rem;color:var(--muted);margin-left:8px" id="mealRespNLabel"></span>
+      </div>
+    </div>
+    <div style="position:relative;display:block">
+      <canvas id="scatterCanvas" height="300" style="width:100%;display:block"></canvas>
+    </div>
+    <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px">
+      Each dot is one meal (bolus with carbs &gt; 0). The x-axis position is the <strong>exact time the meal bolus was taken</strong> (meal ingestion typically follows 10–25 min later). Δ glucose = CGM at +3 h or +4 h after the meal minus CGM at meal time. A value of 0 means glucose returned to pre-meal level. The curve connects raw per-hour mean values directly. Meals with no CGM coverage within ±10 min of the target time are excluded.
+    </div>
   </div>
 
   <!-- Provider Panel -->
@@ -739,6 +792,7 @@
 
 <div class="bolus-tooltip" id="bolusTooltip"></div>
 <div class="bolus-tooltip" id="mainChartTooltip" style="max-width:260px;line-height:1.6"></div>
+<div class="bolus-tooltip" id="mealRespTooltip" style="max-width:230px;line-height:1.6"></div>
 
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -1587,11 +1641,13 @@ function updateStats() {
     document.getElementById('statsGrid').style.display = 'none';
     document.getElementById('todSection').style.display = 'none';
     document.getElementById('hodSection').style.display = 'none';
+    document.getElementById('scatterSection').style.display = 'none';
     return;
   }
   document.getElementById('statsGrid').style.display = 'grid';
   document.getElementById('todSection').style.display = 'block';
   document.getElementById('hodSection').style.display = 'block';
+  document.getElementById('scatterSection').style.display = 'block';
 
   // Use visible view range if available, else full filtered range
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
@@ -1669,20 +1725,20 @@ function updateStats() {
   else if (tir >= 50) tirEl.classList.add('amber');
   else tirEl.classList.add('red');
 
-  buildTOD(visCGM, visBasal, isfMmol);
+  buildTOD(visCGM, visBasal, isfMmol, visBolus);
 }
 
-function buildTOD(visCGM, visBasal, isfMmol) {
+function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   if (!visCGM) {
     const vMin = viewMin ?? rawCGM[0].ts.getTime();
     const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
     visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
     visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
     // Recompute ISF from visible data
-    const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+    visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
     const days2 = Math.max((vMax - vMin) / 86400000, 1/24);
     const basalU = visBasal.reduce((s,b) => s + (b.units||0), 0);
-    const bolusU = visBolus2.reduce((s,b) => s + (b.insulin||0), 0);
+    const bolusU = visBolus.reduce((s,b) => s + (b.insulin||0), 0);
     const tdi2 = (basalU + bolusU) / days2;
     isfMmol = tdi2 > 0 ? 100 / tdi2 : null;
   }
@@ -1711,6 +1767,21 @@ function buildTOD(visCGM, visBasal, isfMmol) {
   const hourlyBasal = basalHourlySum.map((sum, h) =>
     basalHourlyMins[h] > 0 ? sum / basalHourlyMins[h] : null
   );
+
+  // ── Hourly correction boluses ────────────────────────────────────────────────
+  // Corrections: insulin-only boluses (carbs=0), excluding 0.05U hypo treatments
+  const corrHourlyU = new Array(24).fill(0);  // total U per hour slot across all days
+  const vMinC = viewMin ?? rawCGM[0].ts.getTime();
+  const vMaxC = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+  const corrDays = Math.max((vMaxC - vMinC) / 86400000, 1 / 24);
+  (visBolus || []).forEach(b => {
+    const isCorr = (b.carbs === 0 || b.carbs == null) &&
+                   b.insulin > 0 &&
+                   Math.abs(b.insulin - 0.05) >= 0.001;
+    if (isCorr) corrHourlyU[b.ts.getHours()] += b.insulin;
+  });
+  // Convert to avg U/h (total U in slot / days = avg U delivered in that 1-h slot per day)
+  const hourlyCorrRate = corrHourlyU.map(u => u / corrDays);
 
   // Aggregate per hour with percentile stats
   const hourlyData = Array.from({length: 24}, () => []);
@@ -1833,19 +1904,21 @@ function buildTOD(visCGM, visBasal, isfMmol) {
   }
 
   const rawMedian = hourStats.map(s => s ? s.median : null);
+  const rawMean   = hourlyData.map(vals => vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null);
   const rawP5     = hourStats.map(s => s ? s.p5     : null);
   const rawP95    = hourStats.map(s => s ? s.p95    : null);
   const rawP25    = hourStats.map(s => s ? s.p25    : null);
   const rawP75    = hourStats.map(s => s ? s.p75    : null);
 
   const smMedian = smoothed(rawMedian, 1.5);
+  const smMean   = smoothed(rawMean,   1.5);
   const smP5     = smoothed(rawP5,    1.5);
   const smP95    = smoothed(rawP95,   1.5);
   const smP25    = smoothed(rawP25,    1.5);
   const smP75    = smoothed(rawP75,    1.5);
 
   // Extend each series to index 24 (= end of 23:00 slot / 00:00) by repeating hour 23's value
-  [smMedian, smP5, smP95, smP25, smP75].forEach(arr => { arr[24] = arr[23]; });
+  [smMedian, smMean, smP5, smP95, smP25, smP75].forEach(arr => { arr[24] = arr[23]; });
   const validExt = valid[valid.length - 1] === 23 ? [...valid, 24] : valid;
 
   // Build path from valid points only (respecting gaps)
@@ -1910,8 +1983,32 @@ function buildTOD(visCGM, visBasal, isfMmol) {
   drawFilledBand(smP95, smP5, 'rgba(0,212,177,0.10)');
   // Draw 25–75th percentile band (inner)
   drawFilledBand(smP75, smP25, 'rgba(0,212,177,0.22)');
-  // Draw median line
+  // Draw raw median (faint, stepped through hour centres)
+  ctx.save();
+  ctx.setLineDash([3, 3]);
+  drawLine(rawMedian, 'rgba(0,212,177,0.45)', 1.5);
+  ctx.setLineDash([]);
+  ctx.restore();
+  // Draw smoothed median
   drawLine(smMedian, '#00d4b1', 2.5);
+  // Draw mean line (dashed blue)
+  ctx.save();
+  ctx.setLineDash([6, 4]);
+  const meanPts = buildPath(smMean);
+  if (meanPts.length >= 2) {
+    ctx.beginPath();
+    ctx.moveTo(meanPts[0][0], meanPts[0][1]);
+    for (let i = 1; i < meanPts.length; i++) {
+      const prev = meanPts[i-1], curr = meanPts[i];
+      const cpx = (prev[0] + curr[0]) / 2;
+      ctx.bezierCurveTo(cpx, prev[1], cpx, curr[1], curr[0], curr[1]);
+    }
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // ── Basal rate right axis & stepped line ────────────────────────────────────
   const validBasal = hourlyBasal.filter(v => v !== null);
@@ -2008,33 +2105,32 @@ function buildTOD(visCGM, visBasal, isfMmol) {
     canvas._todBasal = { hourlyBasal, toYBasal };
 
     // ── Adjusted Basal curve ───────────────────────────────────────────────────
-    const targetBG = parseFloat(document.getElementById('targetBG').value) || 6.0;
     if (isfMmol && isfMmol > 0) {
-      // Use Gaussian-smoothed hourly median for rate-of-change for a physiologically
-      // coherent curve — smMedian carries the overall diurnal pattern without
-      // single-hour noise spikes.
+      // Glucose drift: delta = median[h+3] - median[h], spread 1/3 * delta / ISF
+      // over hours h, h+1, h+2 (the 3 hours leading up to the observed change).
       const adjBasal = [...hourlyBasal]; // start from avg basal; null slots preserved
       for (let h = 0; h < 24; h++) {
-        const h1 = (h + 1) % 24;
-        if (smMedian[h] == null || smMedian[h1] == null) continue;
-        const rate = smMedian[h1] - smMedian[h]; // mmol/L change during hour h
-        const adjPerMmol = 0.5 / isfMmol;         // U/h per mmol/L/h excess drift
+        const h3 = (h + 3) % 24;
+        if (smMedian[h] == null || smMedian[h3] == null) continue;
+        const delta = smMedian[h3] - smMedian[h];
+        const adj   = (1 / 3) * delta / isfMmol;
+        const h1 = (h + 1) % 24, h2 = (h + 2) % 24;
+        if (adjBasal[h]  !== null) adjBasal[h]  = Math.max(0, adjBasal[h]  + adj);
+        if (adjBasal[h1] !== null) adjBasal[h1] = Math.max(0, adjBasal[h1] + adj);
+        if (adjBasal[h2] !== null) adjBasal[h2] = Math.max(0, adjBasal[h2] + adj);
+      }
 
-        if (smMedian[h] <= targetBG && rate < -0.2) {
-          // Glucose at/below target and dropping → reduce basal in two preceding hours
-          const adj = adjPerMmol * Math.abs(rate);
-          const hm1 = (h - 1 + 24) % 24;
-          const hm2 = (h - 2 + 24) % 24;
-          if (adjBasal[hm1] !== null) adjBasal[hm1] = Math.max(0, adjBasal[hm1] - adj);
-          if (adjBasal[hm2] !== null) adjBasal[hm2] = Math.max(0, adjBasal[hm2] - adj);
-        } else if (smMedian[h] >= targetBG && rate > 0.2) {
-          // Glucose at/above target and rising → increase basal in two preceding hours
-          const adj = adjPerMmol * rate;
-          const hm1 = (h - 1 + 24) % 24;
-          const hm2 = (h - 2 + 24) % 24;
-          if (adjBasal[hm1] !== null) adjBasal[hm1] = adjBasal[hm1] + adj;
-          if (adjBasal[hm2] !== null) adjBasal[hm2] = adjBasal[hm2] + adj;
-        }
+      // Correction bolus distribution: each correction at hour h spreads 1/3 of
+      // its dose to each of the 3 preceding hours (h-1, h-2, h-3).
+      for (let h = 0; h < 24; h++) {
+        if (hourlyCorrRate[h] < 0.001) continue;
+        const third = hourlyCorrRate[h] / 3;
+        const hm1 = (h - 1 + 24) % 24;
+        const hm2 = (h - 2 + 24) % 24;
+        const hm3 = (h - 3 + 24) % 24;
+        if (adjBasal[hm1] !== null) adjBasal[hm1] = Math.max(0, adjBasal[hm1] + third);
+        if (adjBasal[hm2] !== null) adjBasal[hm2] = Math.max(0, adjBasal[hm2] + third);
+        if (adjBasal[hm3] !== null) adjBasal[hm3] = Math.max(0, adjBasal[hm3] + third);
       }
 
       // Draw adjusted basal as dashed teal line on the same basal y-axis
@@ -2058,17 +2154,30 @@ function buildTOD(visCGM, visBasal, isfMmol) {
       ctx.restore();
 
       canvas._todBasal.suggestedBasal = adjBasal;
-      canvas._todBasal.targetBG = targetBG;
       canvas._todBasal.isfMmol = isfMmol;
 
       // Show footnote
       const fn = document.getElementById('todFootnote');
-      const ft = document.getElementById('todFootnoteTarget');
-      if (fn) { fn.style.display = 'block'; ft.textContent = targetBG.toFixed(1); }
+      if (fn) fn.style.display = 'block';
+      // ── Basal totals info box ──────────────────────────────────────────────
+      const totalAvg = hourlyBasal.reduce((s, v) => s + (v ?? 0), 0);
+      const totalAdj = adjBasal.reduce((s, v) => s + (v ?? 0), 0);
+      const diff = totalAdj - totalAvg;
+      const box = document.getElementById('basalInfoBox');
+      if (box) {
+        box.style.display = 'flex';
+        document.getElementById('basalTotalLabel').textContent  = totalAvg.toFixed(2) + ' U';
+        document.getElementById('adjBasalTotalLabel').textContent = totalAdj.toFixed(2) + ' U';
+        const diffEl = document.getElementById('basalDiffLabel');
+        diffEl.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + ' U';
+        diffEl.style.color = diff > 0.05 ? 'var(--amber)' : diff < -0.05 ? 'var(--blue)' : 'var(--target)';
+      }
     } else {
       canvas._todBasal.suggestedBasal = null;
       const fn = document.getElementById('todFootnote');
       if (fn) fn.style.display = 'none';
+      const box2 = document.getElementById('basalInfoBox');
+      if (box2) box2.style.display = 'none';
     }
   } else {
     canvas._todBasal = null;
@@ -2092,13 +2201,14 @@ function buildTOD(visCGM, visBasal, isfMmol) {
 
   // ── Tooltip on hover ────────────────────────────────────────────────────────
   canvas._todStats = hourStats;
-  canvas._todGeom = { PAD, plotW, toX, toY, yMin, yMax, smMedian, smP5, smP95, smP25, smP75 };
+  canvas._todGeom = { PAD, plotW, toX, toY, yMin, yMax, smMedian, smMean, smP5, smP95, smP25, smP75, rawMedian };
 
   // Build companion bolus/carbs/hypo plot
   const vMin2 = viewMin ?? rawCGM[0].ts.getTime();
   const vMax2 = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
   const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin2 && t <= vMax2; });
   buildBolusHOD(visBolus2, vMin2, vMax2);
+  buildMealResponse(visCGM, visBolus2);
 }
 
 // ─── Bolus / Carbs / Hypo by Hour of Day ─────────────────────────────────────
@@ -2292,6 +2402,224 @@ function buildBolusHOD(visBolus, vMin, vMax) {
 function mean(arr) {
   return arr.reduce((s,v) => s+v, 0) / arr.length;
 }
+
+// ─── Post-Meal Glucose Change by Hour of Day ──────────────────────────────────
+function buildMealResponse(visCGM, visBolus) {
+  const canvas = document.getElementById('scatterCanvas');
+  if (!canvas) return;
+
+  // Sort CGM by time for binary search
+  const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
+
+  // Find the CGM value nearest to a target timestamp, within a tolerance window
+  function cgmNear(targetMs, tolMs = 600000) {
+    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
+      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
+      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return best && bestDiff <= tolMs ? best.glc : null;
+  }
+
+  // Identify meals: boluses with carbs > 0 that are not hypo treatments
+  const meals = visBolus.filter(b => (b.carbs || 0) > 0 && !(b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001));
+
+  // For each meal compute Δglc at +3h and +4h
+  // Bucket by hour of day of the meal
+  const byHour3 = Array.from({length: 24}, () => []);
+  const byHour4 = Array.from({length: 24}, () => []);
+  let totalMeals = 0;
+
+  for (const m of meals) {
+    const ms = m.ts.getTime();
+    const h  = m.ts.getHours();
+    const frac = h + m.ts.getMinutes() / 60 + m.ts.getSeconds() / 3600; // exact hour fraction
+    const g0 = cgmNear(ms, 600000);
+    if (g0 === null) continue;
+    const g3 = cgmNear(ms + 3 * 3600000, 600000);
+    const g4 = cgmNear(ms + 4 * 3600000, 600000);
+    if (g3 !== null) { byHour3[h].push({ delta: g3 - g0, g0, frac, carbs: m.carbs || 0, insulin: m.insulin || 0 }); totalMeals++; }
+    if (g4 !== null) { byHour4[h].push({ delta: g4 - g0, g0, frac, carbs: m.carbs || 0, insulin: m.insulin || 0 }); }
+  }
+
+  const has3 = byHour3.some(a => a.length > 0);
+  const has4 = byHour4.some(a => a.length > 0);
+
+  if (!has3 && !has4) {
+    document.getElementById('scatterSection').style.display = 'none';
+    return;
+  }
+  document.getElementById('scatterSection').style.display = 'block';
+  document.getElementById('mealRespNLabel').textContent = `${totalMeals} meals`;
+
+  // Hourly means (null if no data)
+  const mean3 = byHour3.map(a => a.length ? a.reduce((s,v) => s + v.delta, 0) / a.length : null);
+  // Avg ICR per hour: use whichever of byHour3/byHour4 has more entries
+  const hourlyICR = Array.from({length: 24}, (_, h) => {
+    const pool = byHour3[h].length >= byHour4[h].length ? byHour3[h] : byHour4[h];
+    const valid = pool.filter(m => m.insulin > 0);
+    if (!valid.length) return null;
+    return valid.reduce((s, m) => s + m.carbs / m.insulin, 0) / valid.length;
+  });
+  const mean4 = byHour4.map(a => a.length ? a.reduce((s,v) => s + v.delta, 0) / a.length : null);
+  // Extend to index 24 so drawCurve reaches the right edge
+  mean3[24] = mean3[23]; mean4[24] = mean4[23];
+
+
+  // ── Canvas ────────────────────────────────────────────────────────────────────
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
+  const cssH = 300;
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const W = cssW, H = cssH;
+  const PAD = { top: 20, right: 20, bottom: 28, left: 58 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  // Y range: centre on 0, fit all deltas + means
+  const allDeltas = [
+    ...byHour3.flatMap(a => a.map(v => v.delta)),
+    ...byHour4.flatMap(a => a.map(v => v.delta)),
+  ];
+  if (allDeltas.length === 0) return;
+  const absMax = Math.ceil(Math.max(Math.abs(Math.min(...allDeltas)), Math.abs(Math.max(...allDeltas))) + 0.5);
+  const yMax = absMax, yMin = -absMax;
+
+  const toX = h => PAD.left + (h / 24) * plotW;
+  const toY = v => PAD.top + plotH * (1 - (v - yMin) / (yMax - yMin));
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Positive/negative fill zones (above = hyperglycaemia risk, below = hypo risk)
+  ctx.fillStyle = 'rgba(245,158,11,0.05)';
+  ctx.fillRect(PAD.left, toY(yMax), plotW, toY(0) - toY(yMax));
+  ctx.fillStyle = 'rgba(239,68,68,0.05)';
+  ctx.fillRect(PAD.left, toY(0), plotW, toY(yMin) - toY(0));
+
+  // Horizontal grid
+  ctx.strokeStyle = 'rgba(31,45,69,0.8)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'right';
+  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
+    const y = toY(v);
+    ctx.strokeStyle = v === 0 ? 'rgba(100,116,139,0.4)' : 'rgba(31,45,69,0.8)';
+    ctx.lineWidth = v === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillText(v > 0 ? `+${v}` : v, PAD.left - 4, y + 3.5);
+  }
+  ctx.setLineDash([]);
+
+  // Zero line label
+  ctx.fillStyle = 'rgba(100,116,139,0.5)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('no change', PAD.left + 4, toY(0) - 3);
+
+  // X axis ticks
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'center';
+  [0, 3, 6, 9, 12, 15, 18, 21, 24].forEach(h => {
+    const x = toX(h);
+    ctx.fillText(h === 24 ? '00' : String(h).padStart(2, '0'), x, H - 6);
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.bottom); ctx.lineTo(x, H - PAD.bottom + 4); ctx.stroke();
+  });
+
+  // Left Y axis label
+  ctx.save();
+  ctx.translate(13, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(168,85,247,0.75)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Δ glucose (mmol/L)', 0, 0);
+  ctx.restore();
+
+  // ── Individual meal dots at exact meal time ───────────────────────────────────
+  // Both +3h and +4h dots share the same x (exact meal time) — they differ only in colour.
+  // x = bolus time (meal ingestion typically follows 10–25 min later)
+  const dotAlpha = Math.min(0.55, Math.max(0.08, 80 / Math.max(totalMeals, 1)));
+  for (let h = 0; h < 24; h++) {
+    for (const { delta, frac } of byHour3[h]) {
+      ctx.beginPath();
+      ctx.arc(toX(frac), toY(delta), 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(168,85,247,${dotAlpha})`;
+      ctx.fill();
+    }
+    for (const { delta, frac } of byHour4[h]) {
+      ctx.beginPath();
+      ctx.arc(toX(frac), toY(delta), 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(59,130,246,${dotAlpha})`;
+      ctx.fill();
+    }
+  }
+
+  // ── Smoothed mean curves ──────────────────────────────────────────────────────
+  function buildPath(sm) {
+    const pts = [];
+    for (let h = 0; h <= 24; h++) {
+      if (sm[h] !== null) pts.push([toX(h), toY(sm[h])]);
+    }
+    return pts;
+  }
+
+  function drawCurve(sm, colour, lw, dash = []) {
+    const pts = buildPath(sm);
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) {
+      const cpx = (pts[i-1][0] + pts[i][0]) / 2;
+      ctx.bezierCurveTo(cpx, pts[i-1][1], cpx, pts[i][1], pts[i][0], pts[i][1]);
+    }
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = lw;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawCurve(mean4, '#3b82f6', 2.5);
+  drawCurve(mean3, '#a855f7', 2.5);
+
+  // ── Hourly mean markers ───────────────────────────────────────────────────────
+  for (let h = 0; h < 24; h++) {
+    const cx = toX(h + 0.5);
+    if (mean3[h] !== null) {
+      ctx.beginPath();
+      ctx.arc(cx, toY(mean3[h]), 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#a855f7';
+      ctx.fill();
+    }
+    if (mean4[h] !== null) {
+      ctx.beginPath();
+      ctx.arc(cx, toY(mean4[h]), 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#3b82f6';
+      ctx.fill();
+    }
+  }
+
+  // Store for tooltip
+  canvas._mealResp = { PAD, plotW, plotH, toX, toY, byHour3, byHour4, mean3, mean4, hourlyICR };
+}
+
 function stddev(arr) {
   const m = mean(arr);
   return Math.sqrt(arr.reduce((s,v) => s+(v-m)**2, 0) / arr.length);
@@ -2895,6 +3223,41 @@ document.addEventListener('mousemove', (e) => {
       if (hodOverlay) hodOverlay.getContext('2d').clearRect(0, 0, hodOverlay.width, hodOverlay.height);
     }
   }
+  // ── Meal response chart tooltip ───────────────────────────────────────────────
+  {
+    const mrCanvas = document.getElementById('scatterCanvas');
+    const mrTip = document.getElementById('mealRespTooltip');
+    if (mrCanvas && mrCanvas._mealResp && mrTip) {
+      const mrRect = mrCanvas.getBoundingClientRect();
+      if (e.clientX >= mrRect.left && e.clientX <= mrRect.right &&
+          e.clientY >= mrRect.top  && e.clientY <= mrRect.bottom) {
+        const { PAD: mPAD, plotW: mPlotW, byHour3, byHour4, mean3, mean4, hourlyICR } = mrCanvas._mealResp;
+        const xRel2 = e.clientX - mrRect.left - mPAD.left;
+        const hm = Math.max(0, Math.min(23, Math.floor((xRel2 / mPlotW) * 24)));
+        const endLabelM = hm === 23 ? '00:00' : String(hm + 1).padStart(2,'0') + ':00';
+        const n3 = byHour3[hm].length, n4 = byHour4[hm].length;
+        const m3 = mean3[hm], m4 = mean4[hm];
+        if (n3 + n4 > 0) {
+          mrTip.style.display = 'block';
+          const tipW2 = 220;
+          const lft = e.clientX + 14 + tipW2 > window.innerWidth ? e.clientX - tipW2 - 8 : e.clientX + 14;
+          mrTip.style.left = lft + 'px';
+          mrTip.style.top  = (e.clientY - 10) + 'px';
+          const fmt = v => v !== null ? (v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : '—';
+          const icr = hourlyICR[hm];
+          const icrLine = icr != null ? `<br><span style="color:var(--amber)">Avg ICR: ${icr.toFixed(1)} g/U</span>` : '';
+          mrTip.innerHTML = `<strong>Bolus taken ${String(hm).padStart(2,'0')}:00 – ${endLabelM}</strong><br>
+            <span style="color:#a855f7">Δ at +3 h: ${fmt(m3)} mmol/L (n=${n3})</span><br>
+            <span style="color:#3b82f6">Δ at +4 h: ${fmt(m4)} mmol/L (n=${n4})</span>${icrLine}`;
+        } else {
+          mrTip.style.display = 'none';
+        }
+      } else {
+        mrTip.style.display = 'none';
+      }
+    }
+  }
+
   const canvas = document.getElementById('todCanvas');
   const overlay = document.getElementById('todOverlay');
   if (!canvas || !canvas._todGeom) return;
@@ -2907,7 +3270,7 @@ document.addEventListener('mousemove', (e) => {
     return;
   }
 
-  const { PAD, plotW, toX, toY, smMedian, smP5, smP95, smP25, smP75 } = canvas._todGeom;
+  const { PAD, plotW, toX, toY, smMedian, smMean, smP5, smP95, smP25, smP75 } = canvas._todGeom;
   const xRel = e.clientX - rect.left - PAD.left;
   const h = Math.max(0, Math.min(23, Math.floor((xRel / plotW) * 24)));
   const s = canvas._todStats[h]; // for raw n count
@@ -2938,8 +3301,8 @@ document.addEventListener('mousemove', (e) => {
     oc.restore();
   }
 
-  // Show tooltip using smoothed values (matching the drawn curves)
-  const med = smMedian[h], p25 = smP25[h], p75 = smP75[h], p5 = smP5[h], p95 = smP95[h];
+  // Show tooltip using raw smoothed values (matching the drawn curves)
+  const med = smMedian[h], avg2 = smMean[h], p25 = smP25[h], p75 = smP75[h], p5 = smP5[h], p95 = smP95[h];
   if (med == null) { tooltip.style.display = 'none'; return; }
   tooltip.style.display = 'block';
   const tipW = 200;
@@ -2952,8 +3315,10 @@ document.addEventListener('mousemove', (e) => {
   const sugLine = sugVal != null ? `<br><span style="color:rgba(0,212,177,0.85)">Adjusted Basal: ${sugVal.toFixed(2)} U/h *</span>` : '';
   const endLabel = h === 23 ? '00:00' : String(h + 1).padStart(2, '0') + ':00';
   const nStr = s ? ` · n=${s.n}` : '';
+  const rawMedVal = canvas._todGeom.rawMedian?.[h];
   tooltip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong>
-    Median: ${med.toFixed(1)} mmol/L<br>
+    Median: ${med.toFixed(1)} mmol/L${rawMedVal != null ? ' <span style="opacity:0.55">(raw ' + rawMedVal.toFixed(1) + ')</span>' : ''}<br>
+    <span style="color:#3b82f6">Mean: ${avg2 != null ? avg2.toFixed(1) : '—'} mmol/L</span><br>
     25–75th %ile: ${p25.toFixed(1)} – ${p75.toFixed(1)}<br>
     5–95th %ile: ${p5.toFixed(1)} – ${p95.toFixed(1)}${basalLine}${sugLine}<br>
     <span style="color:var(--muted)">${nStr.slice(3)}</span>`;
