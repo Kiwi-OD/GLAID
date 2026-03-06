@@ -963,6 +963,14 @@ function parseDate(str) {
   m = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
   if (m) return new Date(+m[3], +m[2]-1, +m[1]);
 
+  // YYYY/MM/DD HH:MM:SS  /  YYYY/MM/DD HH:MM
+  m = str.match(/^(\d{4})\/(\d{2})\/(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+
+  // YYYY/MM/DD
+  m = str.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+
   // Last resort: native Date (handles RFC strings, etc.)
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
