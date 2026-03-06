@@ -139,7 +139,7 @@ GLAID is a personal data visualisation tool intended to help you explore your ow
 
 **Adjusted Basal suggestion**
 - Added an **Adjusted Basal** curve (dashed teal, right axis) to the Glucose by Hour of Day plot. Two components are applied to the average basal rate for each hour *h*:
-  - *Glucose drift*: `Δ = median[h+3] − median[h]`; add `(1/3) × Δ / ISF` to each of hours h, h+1, h+2.
+  - *Glucose drift*: `Δ = median[h+3] − median[h]`; add `Δ / (ISF × hours²)` to each of hours h, h+1, h+2. The `1/hours²` factor corrects for compounding: each hour accumulates contributions from 3 overlapping drift windows, so dividing by `hours` a second time ensures the total correction sums to `Δ / ISF` as intended.
   - *Correction boluses*: insulin-only boluses (excl. 0.05 U hypo markers) are averaged per hour and distributed as `C(h) / 3` over the 3 preceding hours.
   - All rates are floored at 0. This is **not a clinical recommendation**.
 - Added a **basal info box** showing Avg Basal/day, Adjusted Basal/day, and the difference in U.
