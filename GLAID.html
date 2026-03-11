@@ -802,6 +802,7 @@ let mainChart = null;
 let diaHours = 5;
 let targetRange = { low: 3.9, high: 7.8 };
 let dataLoaded = false;
+let deviceInfo = {};  // metadata extracted from CSV preamble lines
 let chatHistory = [];
 let lastAnalysisText = '';
 let currentProvider = 'anthropic';
@@ -867,7 +868,7 @@ async function handleFile(file) {
       zip.files[bolusKey].async('string'),
     ]);
 
-    rawCGM = parseCSV(cgmText, parseCGMRow);
+    rawCGM   = parseCSV(cgmText,   parseCGMRow,   true);
     rawBasal = parseCSV(basalText, parseBasalRow);
     rawBolus = parseCSV(bolusText, parseBolusRow);
 
@@ -889,13 +890,33 @@ async function handleFile(file) {
 }
 
 // ─── CSV Parsing ──────────────────────────────────────────────────────────────
-function parseCSV(text, rowParser) {
+function extractDeviceInfo(lines, headerIdx) {
+  // Glooko places export metadata in preamble lines before the column headers.
+  // Lines are typically "Key,Value" or "Key: Value" pairs.
+  const info = {};
+  for (let i = 0; i < headerIdx; i++) {
+    const raw = lines[i].replace(/^\uFEFF/, '').trim();
+    if (!raw) continue;
+    const parts = splitCSVLine(raw);
+    if (parts.length >= 2) {
+      const key = parts[0].replace(/^"|"$/g, '').trim().toLowerCase();
+      const val = parts[1].replace(/^"|"$/g, '').trim();
+      if (key && val) info[key] = val;
+    }
+  }
+  return info;
+}
+
+function parseCSV(text, rowParser, isFirst = false) {
   const lines = text.replace(/^\uFEFF/, '').split('\n').filter(l => l.trim());
   // Skip header row 1 (name/date range), find actual header
   let headerIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].toLowerCase().replace(/^"/,'').startsWith('timestamp')) { headerIdx = i; break; }
   }
+  // Extract device/system metadata from preamble lines (merge across all three files)
+  if (isFirst) deviceInfo = {};
+  Object.assign(deviceInfo, extractDeviceInfo(lines, headerIdx));
   const headers = splitCSVLine(lines[headerIdx])
     .map(h => h.trim().replace(/^"|"$/g, '').trim().toLowerCase());
   const results = [];
@@ -3025,7 +3046,15 @@ Bolus doses total: ${visBolus.length} over ${days.toFixed(1)} days
 Average ICR (g carbs per unit insulin): ${avgCarbRatio}
 Hourly glucose averages (mmol/L): ${hourlyStr}
 DIA used for IOB calculation: ${diaHours}h
-System: CamAPS closed-loop (automated insulin delivery)
+${(()=>{
+  const relevant = ['pump','pump model','device','device name','device type','insulin pump',
+                    'sensor','cgm','cgm device','system','therapy','closed loop','aps',
+                    'algorithm','software','firmware','manufacturer'];
+  const found = relevant.filter(k => deviceInfo[k]).map(k => `  ${k}: ${deviceInfo[k]}`);
+  return found.length
+    ? 'Device/system info:\n' + found.join('\n')
+    : 'Device/system: not specified in export metadata';
+})()}
 `.trim();
 }
 
@@ -3081,7 +3110,7 @@ function buildAnalysisPrompt(statsText) {
 - Basal:bolus ratio is typically 40–60% basal in well-controlled pump therapy (NICE NG17; Walsh et al.)
 - Insulin sensitivity factor (ISF) rule of thumb: 100 / TDD (mmol/L drop per unit) — flag if correction boluses are frequent without carbs, suggesting ISF may be too weak
 - ICR is expressed as grams of carbohydrate per unit of insulin (e.g. 10 g/U means 1 unit covers 10g carbs). A higher number means less insulin-sensitive; typical range is 8–20 g/U. ICR adequacy: post-meal glucose returning to baseline within 3–4h is a marker of correct ratio (DAFNE methodology)
-- For closed-loop systems (CamAPS), persistent high or low patterns despite automation suggest the underlying settings (basal profile, ICR, ISF target) fed into the algorithm need adjustment, as these constrain the loop
+- For closed-loop/APS systems, persistent high or low patterns despite automation suggest the underlying settings (basal profile, ICR, ISF target) fed into the algorithm need adjustment, as these constrain the loop
 - If patient age and weight are provided, contextualise TDD/kg (typical range 0.4–0.7 U/kg/day for adults with T1D) and note if out of range
 
 **Your task:**
@@ -3097,7 +3126,7 @@ Identify the 2–3 hours with highest average glucose and 2–3 hours with lowes
 Evaluate the basal:bolus ratio. Comment on whether the correction dose frequency suggests ISF may need adjustment. Note if meal boluses appear consistently undersized or oversized based on post-meal patterns where inferable.
 
 #### Recommendations
-Give 3–5 specific, prioritised, evidence-based recommendations. For each, state: (a) what to change, (b) the rationale grounded in the data and published evidence, (c) the approximate magnitude of adjustment if calculable. Distinguish clearly between settings that the user can discuss adjusting in the CamAPS algorithm vs. general lifestyle factors.
+Give 3–5 specific, prioritised, evidence-based recommendations. For each, state: (a) what to change, (b) the rationale grounded in the data and published evidence, (c) the approximate magnitude of adjustment if calculable. Where relevant, distinguish between pump/algorithm settings and general lifestyle factors.
 
 #### Encouraging Finding
 One concrete positive observation from the data.
