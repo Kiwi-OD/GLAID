@@ -86,18 +86,40 @@
   .file-text strong { display: block; color: var(--text); }
   .file-text small { color: var(--muted); }
 
-  /* Controls */
+  /* Controls — sticky */
   .controls {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
     align-items: center;
-    margin-bottom: 20px;
     padding: 14px 18px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    /* Slight shadow to lift it above content when stuck */
+    box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+    /* Negative margin + matching padding so it visually extends edge-to-edge
+       when the page is narrower than max-width */
+    margin-bottom: 20px;
   }
+  /* Nav arrow buttons */
+  .btn-nav {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--teal);
+    font-family: 'DM Mono', monospace;
+    font-size: 1rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .btn-nav:hover { border-color: var(--teal); background: rgba(0,212,177,0.08); }
+  .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; }
   .ctrl-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .ctrl-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
   .btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -403,6 +425,41 @@
   @media (max-width: 768px) {
     .controls { flex-direction: column; align-items: flex-start; }
     .divider { display: none; }
+    #hodAndTraceRow { grid-template-columns: 1fr !important; }
+  }
+
+  /* Dual range slider thumbs */
+  #mealWindowStart, #mealWindowEnd {
+    pointer-events: none;
+  }
+  #mealWindowStart::-webkit-slider-thumb,
+  #mealWindowEnd::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--teal);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 0 2px rgba(0,212,177,0.3);
+  }
+  #mealWindowStart::-moz-range-thumb,
+  #mealWindowEnd::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--teal);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 0 0 2px rgba(0,212,177,0.3);
+  }
+  #mealWindowStart::-webkit-slider-runnable-track,
+  #mealWindowEnd::-webkit-slider-runnable-track {
+    background: transparent;
+    height: 4px;
   }
 </style>
 </head>
@@ -435,6 +492,8 @@
         <button class="btn" onclick="setPreset(0)">All</button>
         <button class="btn" id="resetZoomBtn" onclick="resetZoom()" title="Reset zoom to full selected date range" style="display:none;border-color:var(--teal);color:var(--teal)">↺ Reset</button>
       </div>
+      <button class="btn-nav" id="navBack"  onclick="shiftPeriod(-1)" title="Previous period" disabled>◀</button>
+      <button class="btn-nav" id="navFwd"   onclick="shiftPeriod(+1)" title="Next period"     disabled>▶</button>
     </div>
     <div class="divider"></div>
     <div class="ctrl-group">
@@ -483,29 +542,7 @@
 
   </div>
 
-  <!-- Main chart -->
-  <div class="chart-wrap">
-    <div class="chart-title">
-      Glucose & Insulin
-      <span style="font-size:0.68rem;color:var(--muted);font-weight:400;margin-left:4px">scroll to zoom · drag to pan</span>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:var(--teal)"></div> CGM (mmol/L)</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--amber)"></div> Basal Rate (U/h)</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--purple);opacity:0.6"></div> IOB (U)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Bolus</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Correction</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--hypo)"></div> Hypo Tx</div>
-      </div>
-    </div>
-    <div id="chartContainer">
-      <div class="empty-state">
-        <div class="icon">📊</div>
-        <p>Load a Glooko export ZIP to see your data</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Stats -->
+  <!-- Stats (above main chart) -->
   <div class="stats-grid" id="statsGrid" style="display:none">
     <div class="stat-card">
       <div class="stat-label">Average Glucose</div>
@@ -561,6 +598,28 @@
       <div class="stat-label" style="color:#f97316">Hypo Treatments</div>
       <div class="stat-value" id="statHypos" style="color:#f97316">—</div>
       <div class="stat-sub" id="statHyposSub">0.05U boluses detected</div>
+    </div>
+  </div>
+
+  <!-- Main chart -->
+  <div class="chart-wrap">
+    <div class="chart-title">
+      Glucose &amp; Insulin
+      <span style="font-size:0.68rem;color:var(--muted);font-weight:400;margin-left:4px">scroll to zoom · drag to pan</span>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--teal)"></div> CGM (mmol/L)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--amber)"></div> Basal Rate (U/h)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--purple);opacity:0.6"></div> IOB (U)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Bolus</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Correction</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--hypo)"></div> Hypo Tx</div>
+      </div>
+    </div>
+    <div id="chartContainer">
+      <div class="empty-state">
+        <div class="icon">📊</div>
+        <p>Load a Glooko export ZIP to see your data</p>
+      </div>
     </div>
   </div>
 
@@ -624,40 +683,81 @@
     </div>
   </div>
 
-  <!-- Bolus / Carbs / Hypo by Hour of Day -->
-  <div class="tod-section" id="hodSection" style="display:none">
-    <div class="tod-header">
-      <div class="tod-title">Insulin, Carbs &amp; Hypos by Hour of Day</div>
-      <div class="tod-legend">
-        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(59,130,246,0.35);border:1px solid rgba(59,130,246,0.5)"></span>Avg Carbs (g)</span>
-        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(168,85,247,0.3);border:1px solid rgba(168,85,247,0.5)"></span>Avg Bolus (U)</span>
-        <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(249,115,22,0.35);border:1px solid rgba(249,115,22,0.5)"></span>Hypo Treatments</span>
-      </div>
-    </div>
-    <div style="position:relative;display:block">
-      <canvas id="hodCanvas" height="240" style="width:100%;display:block"></canvas>
-      <canvas id="hodOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
-    </div>
-    <div id="hodTooltip" class="bolus-tooltip" style="max-width:220px"></div>
-  </div>
+  <!-- Bottom row: HOD chart left, post-meal trace right -->
+  <div id="hodAndTraceRow" style="display:none;gap:16px;margin-bottom:20px;grid-template-columns:1fr 1fr">
 
-  <!-- Post-meal glucose response by hour of day -->
-  <div class="tod-section" id="scatterSection" style="display:none">
-    <div class="tod-header">
-      <div class="tod-title">Post-Meal Glucose Change by Hour of Day</div>
-      <div class="tod-legend">
-        <span class="tod-leg-item"><span class="tod-leg-line" style="background:#a855f7"></span>Δ glc at +3 h (mean)</span>
-        <span class="tod-leg-item"><span class="tod-leg-line" style="background:#3b82f6"></span>Δ glc at +4 h (mean)</span>
-        <span class="tod-leg-item"><span class="tod-leg-dot" style="background:#a855f7;opacity:0.45;width:8px;height:8px;border-radius:50%;display:inline-block"></span>Individual meals</span>
-        <span style="font-size:0.68rem;color:var(--muted);margin-left:8px" id="mealRespNLabel"></span>
+    <!-- Bolus / Carbs / Hypo by Hour of Day -->
+    <div class="tod-section" id="hodSection" style="margin-bottom:0">
+      <div class="tod-header">
+        <div class="tod-title">Insulin, Carbs &amp; Hypos by Hour of Day</div>
+        <div class="tod-legend">
+          <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(59,130,246,0.35);border:1px solid rgba(59,130,246,0.5)"></span>Avg Carbs (g)</span>
+          <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(168,85,247,0.3);border:1px solid rgba(168,85,247,0.5)"></span>Avg Bolus (U)</span>
+          <span class="tod-leg-item"><span class="tod-leg-band" style="background:rgba(249,115,22,0.35);border:1px solid rgba(249,115,22,0.5)"></span>Hypoglycaemia Treatments</span>
+        </div>
+      </div>
+      <div style="position:relative;display:block">
+        <canvas id="hodCanvas" height="240" style="width:100%;display:block"></canvas>
+        <canvas id="hodOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+      </div>
+      <div id="hodTooltip" class="bolus-tooltip" style="max-width:220px"></div>
+
+      <!-- Post-meal glucose response by hour of day (delta) -->
+      <div id="scatterSection" style="display:none;margin-top:16px">
+        <div class="tod-header" style="margin-bottom:8px">
+          <div class="tod-title">Post-Prandial Glucose Excursion by Hour of Day</div>
+          <div class="tod-legend">
+            <span class="tod-leg-item"><span class="tod-leg-line" style="background:#a855f7"></span>Δ at +3 h (mean)</span>
+            <span class="tod-leg-item"><span class="tod-leg-line" style="background:#3b82f6"></span>Δ at +4 h (mean)</span>
+            <span class="tod-leg-item"><span class="tod-leg-dot" style="background:#a855f7;opacity:0.45;width:8px;height:8px;border-radius:50%;display:inline-block"></span>Individual meals</span>
+            <span style="font-size:0.68rem;color:var(--muted);margin-left:8px" id="mealRespNLabel"></span>
+          </div>
+        </div>
+        <div style="position:relative;display:block">
+          <canvas id="scatterCanvas" height="240" style="width:100%;display:block"></canvas>
+          <canvas id="scatterOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+        </div>
+        <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px">
+          Each data point represents one meal (bolus administered with concomitant carbohydrate intake &gt; 0 g). The x-axis position reflects the <strong>exact time of bolus administration</strong> (meal ingestion typically follows 10–25 min later). Δ glucose = interstitial glucose at +3 h or +4 h post-meal minus pre-meal interstitial glucose. A value of 0 indicates return to euglycaemic baseline. Meals lacking CGM coverage within ±10 min of the target time point are excluded.
+        </div>
       </div>
     </div>
-    <div style="position:relative;display:block">
-      <canvas id="scatterCanvas" height="300" style="width:100%;display:block"></canvas>
+
+    <!-- Post-meal 4-hour glucose trace panel -->
+    <div class="tod-section" id="mealTraceSection" style="margin-bottom:0">
+      <div class="tod-header" style="flex-wrap:wrap;gap:8px">
+        <div class="tod-title">Post-Prandial Interstitial Glucose Trace (0–4 h)</div>
+        <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="mealTraceNLabel"></span>
+      </div>
+      <!-- Meal window slider -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Meal Window</span>
+        <div id="mealSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+          <!-- Range track -->
+          <div id="mealSliderTrack" style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
+          <div id="mealSliderFill" style="position:absolute;top:50%;height:4px;background:var(--teal);border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+          <!-- Draggable fill overlay — sits above fill, below thumbs; pans both handles -->
+          <div id="mealSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+          <!-- Start thumb (lower z-index by default, raised dynamically) -->
+          <input type="range" id="mealWindowStart" min="0" max="24" step="0.25" value="0"
+            style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
+            oninput="onMealWindowChange()">
+          <!-- End thumb -->
+          <input type="range" id="mealWindowEnd" min="0" max="24" step="0.25" value="24"
+            style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:4"
+            oninput="onMealWindowChange()">
+        </div>
+        <span id="mealWindowLabel" style="font-size:0.78rem;color:var(--teal);font-family:'DM Mono',monospace;white-space:nowrap;min-width:110px;text-align:right">00:00 – 24:00</span>
+      </div>
+      <div style="position:relative;display:block">
+        <canvas id="mealTraceCanvas" height="320" style="width:100%;display:block"></canvas>
+        <canvas id="mealTraceOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+      </div>
+      <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.7">
+        Interstitial glucose traces are plotted for 4 hours following each meal bolus administered within the selected daily time window. The bold line represents the cohort median trace. Shaded band = interquartile range (25th–75th percentile). CGM readings are interpolated to a 5-minute grid. Pre-meal CGM reference is defined as the interstitial glucose at time 0 (bolus administration).
+      </div>
     </div>
-    <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px">
-      Each dot is one meal (bolus with carbs &gt; 0). The x-axis position is the <strong>exact time the meal bolus was taken</strong> (meal ingestion typically follows 10–25 min later). Δ glucose = CGM at +3 h or +4 h after the meal minus CGM at meal time. A value of 0 means glucose returned to pre-meal level. The curve connects raw per-hour mean values directly. Meals with no CGM coverage within ±10 min of the target time are excluded.
-    </div>
+
   </div>
 
   <!-- Provider Panel -->
@@ -751,9 +851,13 @@
   <!-- AI Summary -->
   <div class="summary-section">
     <div class="summary-header">
-      <div class="summary-title">Analysis & Recommendations</div>
+      <div class="summary-title">Analysis &amp; Recommendations</div>
       <div class="ai-badge">AI</div>
       <button class="btn-analyze" id="analyzeBtn" onclick="generateSummary()" disabled>Analyse Period</button>
+    </div>
+    <div style="font-size:0.68rem;color:var(--muted);background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.18);border-radius:6px;padding:7px 12px;margin-bottom:10px;line-height:1.6">
+      <span style="color:var(--rose);font-weight:600">⚕ AI + Web Search — Medical Disclaimer:</span>
+      The AI analysis below may utilise real-time web search to retrieve published literature. All content generated — including pattern summaries, dosing commentary, and literature citations — is <strong>for informational and educational purposes only</strong>. It does <strong>not</strong> constitute medical advice, a clinical diagnosis, or a therapeutic recommendation. Web-retrieved information may be incomplete, out-of-date, or miscontextualised. Any adjustment to your insulin regimen, including changes to your basal rate programme, carbohydrate-to-insulin ratio (CIR), or insulin sensitivity factor (ISF), must be reviewed and approved by a qualified healthcare professional (e.g. endocrinologist or diabetes specialist nurse) before implementation.
     </div>
     <div class="summary-content" id="summaryContent">
       <span class="placeholder">Load data and press "Analyse Period" to receive a personalised summary with pattern insights and tuning suggestions.</span>
@@ -776,6 +880,9 @@
       <div class="ai-badge">AI + Search</div>
       <span class="chat-scope">Ask questions about your glucose data · searches scientific literature when needed</span>
     </div>
+    <div style="font-size:0.67rem;color:var(--muted);padding:6px 18px 0;line-height:1.5">
+      <span style="color:var(--rose)">⚕</span> AI responses may include web-retrieved content. All outputs are <strong>informational only</strong> — not medical advice. Consult your diabetes care team before acting on any suggestion.
+    </div>
     <div class="chat-messages" id="chatMessages">
       <div class="msg assistant">
         <div class="msg-avatar">GL</div>
@@ -788,9 +895,20 @@
       <button class="chat-send" id="chatSendBtn" onclick="chatSend()" disabled>Send</button>
     </div>
   </div>
+
+  <!-- Page-level disclaimer -->
+  <div style="margin:24px 0 30px;padding:14px 18px;background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.18);border-radius:10px;font-size:0.7rem;color:var(--muted);line-height:1.75;font-family:'DM Mono',monospace">
+    <div style="color:var(--rose);font-weight:600;font-size:0.75rem;margin-bottom:6px">⚕ Medical &amp; AI Disclaimer — For Informational Use Only</div>
+    <strong style="color:var(--text)">This tool is not a medical device and does not provide medical advice.</strong> GLAID is intended solely for educational and informational purposes. All outputs — including continuous glucose monitoring (CGM) statistics, graphical analyses, AI-generated narrative summaries, post-prandial glucose traces, insulin dosing commentary, and any content retrieved via web search — do <strong style="color:var(--text)">not</strong> constitute medical advice, a clinical diagnosis, or a therapeutic recommendation.<br><br>
+    The AI analysis feature utilises large language model (LLM) technology and may additionally retrieve real-time information from external web sources. Web-retrieved content may be incomplete, out-of-date, or miscontextualised relative to your individual clinical situation. AI-generated text can contain errors and should not be treated as authoritative clinical guidance.<br><br>
+    <strong style="color:var(--text)">Do not modify your insulin regimen</strong> — including your basal rate programme, carbohydrate-to-insulin ratio (CIR), insulin sensitivity factor (ISF), or correction factor — based solely on the outputs of this tool. Any changes to your diabetes management plan must be reviewed and approved by a qualified healthcare professional, such as a consultant endocrinologist, diabetologist, or specialist diabetes nurse, before implementation.<br><br>
+    <span style="color:var(--muted);opacity:0.75">GLAID processes all data locally in your browser. No glucose, insulin, or personal health data is transmitted to any server except when explicitly invoking the AI analysis feature, which sends anonymised statistical summaries to the selected AI provider.</span>
+  </div>
+
 </div>
 
 <div class="bolus-tooltip" id="bolusTooltip"></div>
+<div class="bolus-tooltip" id="mealTraceTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mainChartTooltip" style="max-width:260px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mealRespTooltip" style="max-width:230px;line-height:1.6"></div>
 
@@ -848,17 +966,24 @@ async function handleFile(file) {
 
   try {
     const zip = await JSZip.loadAsync(file);
-    const findFile = (pattern) => {
-      const keys = Object.keys(zip.files);
-      return keys.find(k => k.toLowerCase().includes(pattern.toLowerCase()));
+    const keys = Object.keys(zip.files);
+    // Try multiple name fragments to handle English and Swedish Glooko exports
+    const findFile = (...patterns) => {
+      for (const p of patterns) {
+        const hit = keys.find(k => k.toLowerCase().includes(p.toLowerCase()));
+        if (hit) return hit;
+      }
+      return null;
     };
 
-    const cgmKey = findFile('cgm_data');
-    const basalKey = findFile('basal_data');
-    const bolusKey = findFile('bolus_data');
+    const cgmKey   = findFile('cgm_data',   'cgm_data',  'cgm');
+    const basalKey = findFile('basal_data',  'basal',     'basal');
+    const bolusKey = findFile('bolus_data',  'bolus',     'bolus');
 
     if (!cgmKey || !basalKey || !bolusKey) {
-      document.getElementById('fileInfo').textContent = '⚠ Could not find required CSV files';
+      const found = keys.filter(k => k.endsWith('.csv')).join(', ') || '(none)';
+      document.getElementById('fileInfo').textContent =
+        `⚠ Could not find required CSV files. Found: ${found}`;
       return;
     }
 
@@ -912,7 +1037,10 @@ function parseCSV(text, rowParser, isFirst = false) {
   // Skip header row 1 (name/date range), find actual header
   let headerIdx = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].toLowerCase().replace(/^"/,'').startsWith('timestamp')) { headerIdx = i; break; }
+    const low = lines[i].toLowerCase().replace(/^"/, '').replace(/^\uFEFF/, '');
+    if (low.startsWith('timestamp') || low.startsWith('tidsstämpel') || low.startsWith('tidstämpel')) {
+      headerIdx = i; break;
+    }
   }
   // Extract device/system metadata from preamble lines (merge across all three files)
   if (isFirst) deviceInfo = {};
@@ -957,12 +1085,20 @@ function parseDate(str) {
   m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
 
+  // Swedish/locale variant: YYYY-MM-DD HH.MM.SS  (dots as time separator)
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2})\.(\d{2})(?:\.(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+
   // ISO date only: YYYY-MM-DD
   m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return new Date(+m[1], +m[2]-1, +m[3]);
 
   // DD/MM/YYYY HH:MM:SS  or  DD/MM/YYYY HH:MM
   m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD/MM/YYYY HH.MM.SS  (dots as time separator)
+  m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2})\.(\d{2})(?:\.(\d{2}))?/);
   if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
 
   // DD/MM/YYYY
@@ -981,9 +1117,45 @@ function parseDate(str) {
   m = str.match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
 
+  // DD-MM-YYYY HH.MM.SS  (dots as time separator)
+  m = str.match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2})\.(\d{2})(?:\.(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
   // DD-MM-YYYY
   m = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
   if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+
+  // DD.MM.YYYY HH:MM:SS  /  DD.MM.YYYY HH:MM  (dot date separator, common in Scandinavia)
+  m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD.MM.YYYY HH.MM.SS  (both dots)
+  m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})[ T](\d{2})\.(\d{2})(?:\.(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD.MM.YYYY HH:MM:SS without space/T separator (e.g. "12.03.2025 14:32:00")
+  m = str.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD.MM.YYYY HH.MM.SS without space/T separator
+  m = str.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2})\.(\d{2})(?:\.(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +(m[6]||0));
+
+  // DD.MM.YYYY
+  m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+
+  // YYYY.MM.DD HH:MM:SS  /  YYYY.MM.DD HH:MM
+  m = str.match(/^(\d{4})\.(\d{2})\.(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+
+  // YYYY.MM.DD HH.MM.SS
+  m = str.match(/^(\d{4})\.(\d{2})\.(\d{2})[ T](\d{2})\.(\d{2})(?:\.(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+
+  // YYYY.MM.DD
+  m = str.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
 
   // YYYY/MM/DD HH:MM:SS  /  YYYY/MM/DD HH:MM
   m = str.match(/^(\d{4})\/(\d{2})\/(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
@@ -998,29 +1170,78 @@ function parseDate(str) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// Parse a numeric string that may use comma as decimal separator (Swedish/European locale)
+function parseNum(s) {
+  if (s === undefined || s === null || s === '') return NaN;
+  if (typeof s === 'number') return s;
+  return parseFloat(String(s).replace(',', '.'));
+}
+
 function parseCGMRow(obj) {
-  const ts = parseDate(obj['timestamp']);
-  const glc = parseFloat(
+  const ts = parseDate(obj['timestamp'] || obj['tidsstämpel'] || obj['tidstämpel']);
+  const raw =
     obj['cgm glucose value (mmol/l)'] ||
-    obj['cgm glucose value (mg/dl)']  || 0
-  );
+    obj['cgm-glukosvärde (mmol/l)']   ||   // Swedish export: hyphen variant
+    obj['cgm glukosvärde (mmol/l)']   ||   // Swedish export: space variant
+    obj['cgm glucose value (mg/dl)']  ||
+    obj['cgm-glukosvärde (mg/dl)']    ||
+    obj['cgm glukosvärde (mg/dl)'];
+  const glc = parseNum(raw || 0);
   if (!ts || isNaN(glc) || glc <= 0) return null;
   return { ts, glc };
 }
 
 function parseBasalRow(obj) {
-  const ts = parseDate(obj['timestamp']);
-  const dur = parseFloat(obj['duration (minutes)'] || 0);
-  const rate = parseFloat(obj['rate'] || 0);
+  const ts = parseDate(obj['timestamp'] || obj['tidsstämpel'] || obj['tidstämpel']);
+  const dur = parseNum(
+    obj['duration (minutes)']    ||
+    obj['varaktighet (minuter)'] ||
+    obj['duration']              || 0
+  );
+  // English exports have a 'rate' column; Swedish exports have 'insulin tillfört (enh.)'
+  // and no explicit rate — derive rate from units ÷ (dur/60), flooring at 0.
+  let rate = parseNum(
+    obj['rate']           ||
+    obj['frekvens']       ||
+    obj['hastighet']      ||
+    obj['basal rate']     ||
+    obj['basalhastighet'] || null
+  );
+  const unitsDelivered = parseNum(
+    obj['insulin delivered (u)'] ||
+    obj['insulin tillfört (enh.)'] ||
+    obj['insulin tillfört (e.)']   ||
+    obj['insulin tillfört (u.)']   ||
+    obj['insulin (u)']             ||
+    obj['insulin (e)']             || null
+  );
   if (!ts) return null;
-  const units = dur / 60 * rate;
+  // If rate is absent, derive from units and duration
+  if (isNaN(rate) || rate === null) {
+    rate = (dur > 0 && !isNaN(unitsDelivered)) ? (unitsDelivered / (dur / 60)) : 0;
+  }
+  const units = !isNaN(unitsDelivered) ? unitsDelivered : (dur / 60 * rate);
   return { ts, dur, rate, units };
 }
 
 function parseBolusRow(obj) {
-  const ts = parseDate(obj['timestamp']);
-  const carbs = parseFloat(obj['carbs input (g)'] || 0);
-  const insulin = parseFloat(obj['insulin delivered (u)'] || 0);
+  const ts = parseDate(obj['timestamp'] || obj['tidsstämpel'] || obj['tidstämpel']);
+  const carbs = parseNum(
+    obj['carbs input (g)']           ||
+    obj['inmatning av kolhydrater (g)'] ||
+    obj['kolhydrater (g)']           ||
+    obj['kolhydrater']               ||
+    obj['carbs (g)']                 || 0
+  );
+  const insulin = parseNum(
+    obj['insulin delivered (u)']     ||
+    obj['insulin tillfört (enh.)']   ||
+    obj['insulin tillfört (e.)']     ||
+    obj['insulin tillfört (u.)']     ||
+    obj['insulin delivered (e)']     ||
+    obj['insulin (u)']               ||
+    obj['insulin (e)']               || 0
+  );
   if (!ts) return null;
   return { ts, carbs, insulin };
 }
@@ -1081,6 +1302,44 @@ function applyFilter() {
   viewMin = null; viewMax = null; // reset zoom to full filtered range
   renderChart();
   updateStats();
+  updateNavButtons();
+}
+
+function updateNavButtons() {
+  if (!dataLoaded) return;
+  const allTimes = [...rawCGM, ...rawBasal, ...rawBolus].map(r => r.ts.getTime());
+  const dataMin = Math.min(...allTimes);
+  const dataMax = Math.max(...allTimes);
+  const from = new Date(document.getElementById('dateFrom').value + 'T00:00:00').getTime();
+  const to   = new Date(document.getElementById('dateTo').value   + 'T23:59:59').getTime();
+  document.getElementById('navBack').disabled = from <= dataMin;
+  document.getElementById('navFwd').disabled  = to   >= dataMax;
+}
+
+function shiftPeriod(dir) {
+  if (!dataLoaded) return;
+  const from    = new Date(document.getElementById('dateFrom').value + 'T00:00:00');
+  const to      = new Date(document.getElementById('dateTo').value   + 'T23:59:59');
+  // Period width in whole days (round up so we always move at least 1 day)
+  const spanMs  = to.getTime() - from.getTime();
+  const spanDays = Math.max(1, Math.round(spanMs / 86400000));
+
+  const allTimes = [...rawCGM, ...rawBasal, ...rawBolus].map(r => r.ts.getTime());
+  const dataMin  = new Date(Math.min(...allTimes));
+  const dataMax  = new Date(Math.max(...allTimes));
+
+  let newFrom = new Date(from.getTime() + dir * spanDays * 86400000);
+  let newTo   = new Date(to.getTime()   + dir * spanDays * 86400000);
+
+  // Clamp to data boundaries
+  if (newFrom < dataMin) { newFrom = new Date(dataMin); newTo = new Date(newFrom.getTime() + spanMs); }
+  if (newTo   > dataMax) { newTo   = new Date(dataMax); newFrom = new Date(newTo.getTime() - spanMs); }
+  if (newFrom < dataMin)   newFrom = new Date(dataMin);
+
+  document.querySelectorAll('#presetBtns .btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('dateFrom').value = fmtDateInput(newFrom);
+  document.getElementById('dateTo').value   = fmtDateInput(newTo);
+  applyFilter();
 }
 
 // ─── IOB Calculation ──────────────────────────────────────────────────────────
@@ -1670,14 +1929,13 @@ function updateStats() {
   if (rawCGM.length === 0) {
     document.getElementById('statsGrid').style.display = 'none';
     document.getElementById('todSection').style.display = 'none';
-    document.getElementById('hodSection').style.display = 'none';
-    document.getElementById('scatterSection').style.display = 'none';
+    document.getElementById('hodAndTraceRow').style.display = 'none';
     return;
   }
   document.getElementById('statsGrid').style.display = 'grid';
   document.getElementById('todSection').style.display = 'block';
-  document.getElementById('hodSection').style.display = 'block';
-  document.getElementById('scatterSection').style.display = 'block';
+  document.getElementById('hodAndTraceRow').style.display = 'grid';
+  document.getElementById('mealTraceSection').style.display = 'block';
 
   // Use visible view range if available, else full filtered range
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
@@ -1756,6 +2014,301 @@ function updateStats() {
   else tirEl.classList.add('red');
 
   buildTOD(visCGM, visBasal, isfMmol, visBolus);
+  buildMealTrace(visCGM, visBolus);
+}
+
+// ─── Post-Prandial Glucose Trace (0–4 h) ─────────────────────────────────────
+let mealTraceVisCGM  = [];
+let mealTraceVisBolus = [];
+
+function onMealWindowChange() {
+  const s = parseFloat(document.getElementById('mealWindowStart').value);
+  const e = parseFloat(document.getElementById('mealWindowEnd').value);
+  let start = Math.min(s, e), end = Math.max(s, e);
+  // Enforce minimum gap of 0.5 h
+  if (end - start < 0.5) {
+    if (s <= e) end = start + 0.5;
+    else start = end - 0.5;
+    document.getElementById('mealWindowStart').value = start;
+    document.getElementById('mealWindowEnd').value   = end;
+  }
+  // Update fill bar + pan overlay
+  // Browser range thumbs are offset by ~half-thumb-width (8px for 16px thumb).
+  // We replicate the browser's own formula: pos% = (val - min) / (max - min),
+  // then correct for thumb half-width so the bar edges align with thumb centres.
+  const fill = document.getElementById('mealSliderFill');
+  const pan  = document.getElementById('mealSliderPan');
+  const wrap = document.getElementById('mealSliderWrap');
+  if (fill && wrap) {
+    const thumbR = 8; // half of 16px thumb
+    const trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
+    const scale  = (trackW - 2 * thumbR) / trackW; // usable fraction
+    const offset = thumbR / trackW * 100;           // % offset for left edge
+    const leftPct  = offset + (start / 24) * scale * 100;
+    const widthPct = ((end - start) / 24) * scale * 100;
+    fill.style.left  = leftPct + '%';
+    fill.style.width = widthPct + '%';
+    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
+  }
+  // Update label
+  const fmt = v => {
+    const h = Math.floor(v);
+    const m = Math.round((v - h) * 60);
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  };
+  document.getElementById('mealWindowLabel').textContent = fmt(start) + ' – ' + (end >= 24 ? '24:00' : fmt(end));
+  if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus);
+}
+
+function buildMealTrace(visCGM, visBolus) {
+  mealTraceVisCGM   = visCGM;
+  mealTraceVisBolus = visBolus;
+
+  const section = document.getElementById('mealTraceSection');
+  const canvas  = document.getElementById('mealTraceCanvas');
+  if (!canvas) return;
+
+  const startH = parseFloat(document.getElementById('mealWindowStart').value);
+  const endH   = parseFloat(document.getElementById('mealWindowEnd').value);
+  const winStart = Math.min(startH, endH);
+  const winEnd   = Math.max(startH, endH);
+
+  // CGM sorted for binary search
+  const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
+  function cgmNear(targetMs, tolMs = 600000) {
+    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
+      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
+      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return best && bestDiff <= tolMs ? best.glc : null;
+  }
+
+  // Filter meals within daily time window
+  const meals = visBolus.filter(b => {
+    if (!((b.carbs || 0) > 0)) return false;
+    if (b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001) return false;
+    const h = b.ts.getHours() + b.ts.getMinutes() / 60 + b.ts.getSeconds() / 3600;
+    return h >= winStart && h < winEnd;
+  });
+
+  // Build normalised traces: sample at 0,5,10,...,240 min relative to bolus
+  const STEP = 5; // minutes
+  const STEPS = 240 / STEP + 1; // 0..240 inclusive => 49 points
+  const traces = [];
+  for (const m of meals) {
+    const ms = m.ts.getTime();
+    const g0 = cgmNear(ms, 600000);
+    if (g0 === null) continue;
+    const pts = [];
+    for (let i = 0; i < STEPS; i++) {
+      const t = i * STEP;
+      const gv = cgmNear(ms + t * 60000, 360000); // ±6 min tolerance
+      pts.push(gv !== null ? gv - g0 : null);
+    }
+    // Only include trace if at least 70% of points are available
+    const nonNull = pts.filter(v => v !== null).length;
+    if (nonNull / pts.length < 0.7) continue;
+    traces.push({ pts, carbs: m.carbs || 0, insulin: m.insulin || 0 });
+  }
+
+  document.getElementById('mealTraceNLabel').textContent = `${traces.length} meal${traces.length !== 1 ? 's' : ''} in window`;
+
+  // ── Canvas setup ─────────────────────────────────────────────────────────────
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
+  const cssH = 320;
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = cssW, H = cssH;
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = { top: 20, right: 20, bottom: 32, left: 56 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  if (traces.length === 0) {
+    ctx.fillStyle = 'rgba(100,116,139,0.5)';
+    ctx.font = '11px DM Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No meals found in selected time window', W / 2, H / 2);
+    return;
+  }
+
+  // Y range (delta glucose, normalised to 0 at bolus time)
+  const allDeltas = traces.flatMap(tr => tr.pts.filter(v => v !== null));
+  const yMin = Math.min(Math.floor(Math.min(...allDeltas) - 0.5), -1.5);
+  const yMax = Math.max(Math.ceil( Math.max(...allDeltas) + 0.5),  1.5);
+
+  const toX = (minOffset) => PAD.left + (minOffset / 240) * plotW;
+  const toY = (v) => PAD.top + plotH * (1 - (v - yMin) / (yMax - yMin));
+
+  // Backgrounds
+  ctx.fillStyle = 'rgba(245,158,11,0.04)';
+  ctx.fillRect(PAD.left, toY(yMax), plotW, toY(0) - toY(yMax));
+  ctx.fillStyle = 'rgba(239,68,68,0.04)';
+  ctx.fillRect(PAD.left, toY(0), plotW, toY(yMin) - toY(0));
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(31,45,69,0.8)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'right';
+  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
+    const y = toY(v);
+    ctx.strokeStyle = v === 0 ? 'rgba(100,116,139,0.5)' : 'rgba(31,45,69,0.8)';
+    ctx.lineWidth = v === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,116,139,0.7)';
+    ctx.fillText(`${v}`, PAD.left - 4, y + 3.5);
+  }
+  ctx.setLineDash([]);
+
+  // ±2 mmol/L dashed reference lines
+  [-2, 2].forEach(v => {
+    if (v < yMin || v > yMax) return;
+    const y = toY(v);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = v > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.restore();
+  });
+
+  // Zero line label
+  ctx.fillStyle = 'rgba(100,116,139,0.5)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('pre-meal baseline', PAD.left + 4, toY(0) - 3);
+
+  // X axis
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'center';
+  [0, 30, 60, 90, 120, 150, 180, 210, 240].forEach(t => {
+    const x = toX(t);
+    ctx.fillText(`+${t} min`, x, H - 6);
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.bottom); ctx.lineTo(x, H - PAD.bottom + 4); ctx.stroke();
+  });
+
+  // Left Y axis label
+  ctx.save();
+  ctx.translate(13, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,212,177,0.7)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Δ Interstitial Glucose (mmol/L)', 0, 0);
+  ctx.restore();
+
+  // Individual traces (faint)
+  const alpha = Math.min(0.45, Math.max(0.06, 50 / traces.length));
+  for (const tr of traces) {
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < STEPS; i++) {
+      if (tr.pts[i] === null) { started = false; continue; }
+      const x = toX(i * STEP), y = toY(tr.pts[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(0,212,177,${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  // Compute per-timepoint stats: median + IQR
+  const colMedian = new Array(STEPS).fill(null);
+  const colP25    = new Array(STEPS).fill(null);
+  const colP75    = new Array(STEPS).fill(null);
+  function pctile(sorted, p) {
+    if (!sorted.length) return null;
+    const idx = (p / 100) * (sorted.length - 1);
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+  for (let i = 0; i < STEPS; i++) {
+    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
+    if (col.length < 2) continue;
+    const s = [...col].sort((a,b) => a-b);
+    colMedian[i] = pctile(s, 50);
+    colP25[i]    = pctile(s, 25);
+    colP75[i]    = pctile(s, 75);
+  }
+
+  // IQR shaded band — more prominent
+  const iqrPts = Array.from({length: STEPS}, (_, i) => colP25[i] !== null ? [toX(i * STEP), toY(colP25[i])] : null).filter(Boolean);
+  const iqrTop = Array.from({length: STEPS}, (_, i) => colP75[i] !== null ? [toX(i * STEP), toY(colP75[i])] : null).filter(Boolean);
+  if (iqrTop.length > 1 && iqrPts.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
+    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
+    for (let i = iqrPts.length - 1; i >= 0; i--) ctx.lineTo(iqrPts[i][0], iqrPts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,212,177,0.22)';
+    ctx.fill();
+    // IQR border lines for extra definition
+    ctx.beginPath();
+    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
+    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
+    ctx.strokeStyle = 'rgba(0,212,177,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(iqrPts[0][0], iqrPts[0][1]);
+    for (const [x, y] of iqrPts) ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  // Median trace — bold teal, heavier weight
+  ctx.beginPath();
+  let mStarted = false;
+  for (let i = 0; i < STEPS; i++) {
+    if (colMedian[i] === null) { mStarted = false; continue; }
+    const x = toX(i * STEP), y = toY(colMedian[i]);
+    if (!mStarted) { ctx.moveTo(x, y); mStarted = true; } else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#00d4b1';
+  ctx.lineWidth = 3.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // Legend
+  ctx.fillStyle = 'rgba(0,212,177,0.7)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('Median', PAD.left + 8, PAD.top + 14);
+  ctx.fillStyle = 'rgba(0,212,177,0.25)';
+  ctx.fillRect(PAD.left + 50, PAD.top + 6, 14, 8);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.fillText('IQR', PAD.left + 66, PAD.top + 14);
+
+  // Store geometry + per-timepoint data for tooltip
+  // Also compute per-timepoint n and mean of individual traces
+  const colN    = new Array(STEPS).fill(0);
+  const colMean = new Array(STEPS).fill(null);
+  for (let i = 0; i < STEPS; i++) {
+    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
+    colN[i] = col.length;
+    colMean[i] = col.length ? col.reduce((s,v) => s+v, 0) / col.length : null;
+  }
+  canvas._mealTrace = { PAD, plotW, plotH, toX, toY, STEP, STEPS,
+    colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
 }
 
 function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
@@ -1859,11 +2412,11 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
-  // Y range: always start at 0, ceiling above all p90 values and target high
+  // Y range: always start at 0, ceiling just above the p95 data with a small margin
   const allVals = hourStats.filter(Boolean).map(s => s.p95);
-  allVals.push(targetRange.high + 1);
+  allVals.push(targetRange.high + 0.5);
   const yMin = 0;
-  const yMax = Math.ceil(Math.max(...allVals) + 0.5);
+  const yMax = Math.ceil((Math.max(...allVals) + 0.3) * 2) / 2; // round to nearest 0.5
 
   const toX = (h) => PAD.left + (h / 24) * plotW;  // 0..24 mapped across plot (right edge = 24:00 / 00:00)
   const toY = (v) => PAD.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
@@ -2241,6 +2794,7 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin2 && t <= vMax2; });
   buildBolusHOD(visBolus2, vMin2, vMax2);
   buildMealResponse(visCGM, visBolus2);
+  buildMealTrace(visCGM, visBolus2);
 }
 
 // ─── Bolus / Carbs / Hypo by Hour of Day ─────────────────────────────────────
@@ -2257,21 +2811,40 @@ function buildBolusHOD(visBolus, vMin, vMax) {
   const hourHypo    = new Array(24).fill(0); // count of hypo treatments
   const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
 
+  // Count distinct calendar days that had any bolus/meal event in each hour slot.
+  // This gives a proper per-day average: e.g. if lunch only happens on 20 of 28 days
+  // the lunchtime bar reflects total/20 rather than the deflated total/28.
+  const hourDaysSets = Array.from({length: 24}, () => new Set());
+
   for (const b of visBolus) {
     const h = b.ts.getHours();
     const isHypo = b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001;
+    // Use date string as the day key (local date)
+    const dayKey = b.ts.toLocaleDateString('sv-SE');
     if (isHypo) {
       hourHypo[h]++;
+      hourDaysSets[h].add(dayKey);
     } else {
       hourCarbs[h] += b.carbs || 0;
       hourBolus[h] += b.insulin || 0;
+      hourDaysSets[h].add(dayKey);
     }
   }
 
-  // Convert to per-day averages
-  const avgCarbs = hourCarbs.map(v => v / days);
-  const avgBolus = hourBolus.map(v => v / days);
-  const avgHypo  = hourHypo.map(v => v / days);
+  // For hours with no events, fall back to the global day count so bars stay at 0
+  const globalDays = Math.max(days, 1);
+  const avgCarbs = hourCarbs.map((v, h) => {
+    const n = hourDaysSets[h].size;
+    return n > 0 ? v / n : 0;
+  });
+  const avgBolus = hourBolus.map((v, h) => {
+    const n = hourDaysSets[h].size;
+    return n > 0 ? v / n : 0;
+  });
+  const avgHypo = hourHypo.map((v, h) => {
+    const n = hourDaysSets[h].size;
+    return n > 0 ? v / n : 0;
+  });
 
   // DPI-aware sizing — use getBoundingClientRect so geometry matches mousemove reads
   const dpr  = window.devicePixelRatio || 1;
@@ -2428,7 +3001,8 @@ function buildBolusHOD(visBolus, vMin, vMax) {
 
   // Store geometry for tooltip
   canvas._hodGeom  = { PAD, plotW, barW, toX, toYCarbs, toYBolus, toYHypo };
-  canvas._hodData  = { avgCarbs, avgBolus, avgHypo, hourCarbs, hourBolus, hourHypo, hypoCarbsVal, days };
+  const hourDayCounts = hourDaysSets.map(s => s.size);
+  canvas._hodData  = { avgCarbs, avgBolus, avgHypo, hourCarbs, hourBolus, hourHypo, hypoCarbsVal, days, hourDayCounts };
 }
 
 function mean(arr) {
@@ -2550,9 +3124,21 @@ function buildMealResponse(visCGM, visBolus) {
     ctx.strokeStyle = v === 0 ? 'rgba(100,116,139,0.4)' : 'rgba(31,45,69,0.8)';
     ctx.lineWidth = v === 0 ? 1.5 : 1;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
-    ctx.fillText(v > 0 ? `+${v}` : v, PAD.left - 4, y + 3.5);
+    ctx.fillText(`${v}`, PAD.left - 4, y + 3.5);
   }
   ctx.setLineDash([]);
+
+  // ±2 mmol/L dashed reference lines
+  [-2, 2].forEach(v => {
+    if (v < yMin || v > yMax) return;
+    const y = toY(v);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = v > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.restore();
+  });
 
   // Zero line label
   ctx.fillStyle = 'rgba(100,116,139,0.5)';
@@ -3254,8 +3840,8 @@ document.addEventListener('mousemove', (e) => {
       hodTip.style.left = left + 'px';
       hodTip.style.top  = (e.clientY - 10) + 'px';
       hodTip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong><br>
-        <span style="color:#3b82f6">Carbs: ${d.avgCarbs[h].toFixed(1)} g/day (total ${d.hourCarbs[h].toFixed(0)}g)</span><br>
-        <span style="color:#a855f7">Bolus: ${d.avgBolus[h].toFixed(2)} U/day (total ${d.hourBolus[h].toFixed(2)}U)</span><br>
+        <span style="color:#3b82f6">Carbs: ${d.avgCarbs[h].toFixed(1)} g/day (total ${d.hourCarbs[h].toFixed(0)}g, n=${d.hourDayCounts[h]} days)</span><br>
+        <span style="color:#a855f7">Bolus: ${d.avgBolus[h].toFixed(2)} U/day (total ${d.hourBolus[h].toFixed(2)}U, n=${d.hourDayCounts[h]} days)</span><br>
         <span style="color:#f97316">Hypo Tx: ${d.hourHypo[h]} total (${d.avgHypo[h].toFixed(2)}/day · ${d.hypoCarbsVal}g each)</span>`;
     } else {
       hodTip.style.display = 'none';
@@ -3267,6 +3853,7 @@ document.addEventListener('mousemove', (e) => {
   {
     const mrCanvas = document.getElementById('scatterCanvas');
     const mrTip = document.getElementById('mealRespTooltip');
+    const scOverlay = document.getElementById('scatterOverlay');
     if (mrCanvas && mrCanvas._mealResp && mrTip) {
       const mrRect = mrCanvas.getBoundingClientRect();
       if (e.clientX >= mrRect.left && e.clientX <= mrRect.right &&
@@ -3277,6 +3864,27 @@ document.addEventListener('mousemove', (e) => {
         const endLabelM = hm === 23 ? '00:00' : String(hm + 1).padStart(2,'0') + ':00';
         const n3 = byHour3[hm].length, n4 = byHour4[hm].length;
         const m3 = mean3[hm], m4 = mean4[hm];
+
+        // ── Hour column highlight overlay ───────────────────────────────────
+        if (scOverlay) {
+          const dpr = window.devicePixelRatio || 1;
+          const cssW = mrRect.width, cssH = mrRect.height;
+          scOverlay.width  = cssW * dpr; scOverlay.height = cssH * dpr;
+          scOverlay.style.width = cssW + 'px'; scOverlay.style.height = cssH + 'px';
+          const oc = scOverlay.getContext('2d');
+          oc.clearRect(0, 0, scOverlay.width, scOverlay.height);
+          oc.save(); oc.scale(dpr, dpr);
+          const toX = h => mPAD.left + (h / 24) * mPlotW;
+          const x0 = toX(hm), x1 = toX(hm + 1);
+          oc.fillStyle = 'rgba(0,212,177,0.10)';
+          oc.fillRect(x0, mPAD.top, x1 - x0, cssH - mPAD.top - mPAD.bottom);
+          oc.strokeStyle = 'rgba(0,212,177,0.35)';
+          oc.lineWidth = 1;
+          oc.beginPath(); oc.moveTo(x0, mPAD.top); oc.lineTo(x0, cssH - mPAD.bottom); oc.stroke();
+          oc.beginPath(); oc.moveTo(x1, mPAD.top); oc.lineTo(x1, cssH - mPAD.bottom); oc.stroke();
+          oc.restore();
+        }
+
         if (n3 + n4 > 0) {
           mrTip.style.display = 'block';
           const tipW2 = 220;
@@ -3294,6 +3902,82 @@ document.addEventListener('mousemove', (e) => {
         }
       } else {
         mrTip.style.display = 'none';
+        if (scOverlay) scOverlay.getContext('2d').clearRect(0, 0, scOverlay.width, scOverlay.height);
+      }
+    }
+  }
+
+  // ── Post-prandial glucose trace tooltip ──────────────────────────────────────
+  {
+    const mtCanvas = document.getElementById('mealTraceCanvas');
+    const mtTip    = document.getElementById('mealTraceTooltip');
+    if (mtCanvas && mtCanvas._mealTrace && mtTip) {
+      const mtRect = mtCanvas.getBoundingClientRect();
+      if (e.clientX >= mtRect.left && e.clientX <= mtRect.right &&
+          e.clientY >= mtRect.top  && e.clientY <= mtRect.bottom) {
+        const { PAD: mPAD, plotW: mPlotW, plotH: mPlotH,
+                toX: mtToX, STEP: mSTEP, STEPS: mSTEPS,
+                colMedian, colP25, colP75, colMean, colN } = mtCanvas._mealTrace;
+        const xRel = e.clientX - mtRect.left - mPAD.left;
+        if (xRel >= 0 && xRel <= mPlotW) {
+          const idx = Math.max(0, Math.min(mSTEPS - 1, Math.round((xRel / mPlotW) * 240 / mSTEP)));
+          const tMin = idx * mSTEP;
+          const n = colN[idx];
+          if (n > 0) {
+            // ── Column highlight overlay (matches HOD style) ──────────────────
+            const mtOverlay = document.getElementById('mealTraceOverlay');
+            if (mtOverlay) {
+              const dpr = window.devicePixelRatio || 1;
+              const cssW = mtRect.width;
+              const cssH = mtRect.height;
+              mtOverlay.width  = cssW * dpr;
+              mtOverlay.height = cssH * dpr;
+              mtOverlay.style.width  = cssW + 'px';
+              mtOverlay.style.height = cssH + 'px';
+              const oc = mtOverlay.getContext('2d');
+              oc.clearRect(0, 0, mtOverlay.width, mtOverlay.height);
+              oc.save();
+              oc.scale(dpr, dpr);
+              // Column spans from this 5-min slot to the next
+              const x0 = mPAD.left + (tMin / 240) * mPlotW;
+              const x1 = mPAD.left + ((tMin + mSTEP) / 240) * mPlotW;
+              oc.fillStyle = 'rgba(0,212,177,0.10)';
+              oc.fillRect(x0, mPAD.top, x1 - x0, cssH - mPAD.top - mPAD.bottom);
+              oc.strokeStyle = 'rgba(0,212,177,0.35)';
+              oc.lineWidth = 1;
+              oc.beginPath(); oc.moveTo(x0, mPAD.top); oc.lineTo(x0, cssH - mPAD.bottom); oc.stroke();
+              oc.beginPath(); oc.moveTo(x1, mPAD.top); oc.lineTo(x1, cssH - mPAD.bottom); oc.stroke();
+              oc.restore();
+            }
+            // Hide the old single-line crosshair div if it exists
+            const ch = document.getElementById('mtCrosshair');
+            if (ch) ch.style.display = 'none';
+
+            const fmt = v => v !== null ? (v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : '—';
+            const tipW = 230;
+            const lft  = e.clientX + 14 + tipW > window.innerWidth ? e.clientX - tipW - 8 : e.clientX + 14;
+            mtTip.style.left    = lft + 'px';
+            mtTip.style.top     = (e.clientY - 10) + 'px';
+            mtTip.style.display = 'block';
+            mtTip.innerHTML = `<strong>+${tMin} min post-bolus</strong><br>
+              <span style="color:var(--teal)">Median: ${fmt(colMedian[idx])} mmol/L</span><br>
+              <span style="color:rgba(0,212,177,0.65)">IQR: ${fmt(colP25[idx])} – ${fmt(colP75[idx])} mmol/L</span><br>
+              <span style="color:#3b82f6">Mean: ${fmt(colMean[idx])} mmol/L</span><br>
+              <span style="color:var(--muted)">n = ${n} meal${n !== 1 ? 's' : ''}</span>`;
+          } else {
+            mtTip.style.display = 'none';
+            const ov = document.getElementById('mealTraceOverlay');
+            if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
+          }
+        } else {
+          mtTip.style.display = 'none';
+          const ov = document.getElementById('mealTraceOverlay');
+          if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
+        }
+      } else {
+        mtTip.style.display = 'none';
+        const ov = document.getElementById('mealTraceOverlay');
+        if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
       }
     }
   }
@@ -3367,13 +4051,139 @@ document.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseleave', () => {
   const overlay = document.getElementById('todOverlay');
   if (overlay) overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+  const ch = document.getElementById('mtCrosshair');
+  if (ch) ch.style.display = 'none';
+  const mtOv = document.getElementById('mealTraceOverlay');
+  if (mtOv) mtOv.getContext('2d').clearRect(0, 0, mtOv.width, mtOv.height);
+  const scOv = document.getElementById('scatterOverlay');
+  if (scOv) scOv.getContext('2d').clearRect(0, 0, scOv.width, scOv.height);
+  const mtTip = document.getElementById('mealTraceTooltip');
+  if (mtTip) mtTip.style.display = 'none';
 });
 
 // Redraw TOD on resize
 let todResizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(todResizeTimer);
-  todResizeTimer = setTimeout(() => { if (dataLoaded) buildTOD(); }, 120);
+  todResizeTimer = setTimeout(() => {
+    if (dataLoaded) {
+      buildTOD();
+      if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus);
+    }
+  }, 120);
+});
+
+// Init slider fill on load + wire pointer-routing for dual range slider
+window.addEventListener('load', () => {
+  onMealWindowChange();
+
+  // ── Dual-range slider: thumb routing + fill-bar pan ───────────────────────────
+  const wrap   = document.getElementById('mealSliderWrap');
+  const inpS   = document.getElementById('mealWindowStart');
+  const inpE   = document.getElementById('mealWindowEnd');
+  const panBar = document.getElementById('mealSliderPan');
+  if (!wrap || !inpS || !inpE || !panBar) return;
+
+  // THUMB THUMB ROUTING ─────────────────────────────────────────────────────────
+  // On mousedown on the wrapper, decide which thumb to activate based on
+  // proximity. The pan bar sits above the fill; clicks on the pan bar are
+  // handled separately (see below) and will not fall through to this handler
+  // because the pan bar calls e.stopPropagation().
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.target === panBar) return; // handled by pan logic below
+    const rect     = wrap.getBoundingClientRect();
+    const ratio    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const clickVal = ratio * 24;
+    const s  = parseFloat(inpS.value);
+    const en = parseFloat(inpE.value);
+    const distS = Math.abs(clickVal - s);
+    const distE = Math.abs(clickVal - en);
+    const useStart = distS < distE || (distS === distE && clickVal <= (s + en) / 2);
+    const target = useStart ? inpS : inpE;
+    const other  = useStart ? inpE : inpS;
+    target.style.zIndex = '5';
+    other.style.zIndex  = '3';
+    target.style.pointerEvents = 'auto';
+    other.style.pointerEvents  = 'none';
+  });
+
+  wrap.addEventListener('touchstart', (e) => {
+    if (e.target === panBar) return;
+    const rect     = wrap.getBoundingClientRect();
+    const ratio    = Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width));
+    const clickVal = ratio * 24;
+    const s  = parseFloat(inpS.value);
+    const en = parseFloat(inpE.value);
+    const distS = Math.abs(clickVal - s);
+    const distE = Math.abs(clickVal - en);
+    const useStart = distS < distE || (distS === distE && clickVal <= (s + en) / 2);
+    const target = useStart ? inpS : inpE;
+    const other  = useStart ? inpE : inpS;
+    target.style.zIndex = '5';
+    other.style.zIndex  = '3';
+    target.style.pointerEvents = 'auto';
+    other.style.pointerEvents  = 'none';
+  }, { passive: true });
+
+  document.addEventListener('mouseup',  () => {
+    inpS.style.pointerEvents = 'none';
+    inpE.style.pointerEvents = 'none';
+  });
+  document.addEventListener('touchend', () => {
+    inpS.style.pointerEvents = 'none';
+    inpE.style.pointerEvents = 'none';
+  });
+
+  // PAN LOGIC ───────────────────────────────────────────────────────────────────
+  // Dragging the teal fill bar shifts both handles by the same delta,
+  // clamping so neither goes out of [0, 24].
+  let panActive = false;
+  let panStartX = 0;
+  let panStartS = 0;
+  let panStartE = 0;
+
+  function panStart(clientX) {
+    panActive = true;
+    panStartX = clientX;
+    panStartS = parseFloat(inpS.value);
+    panStartE = parseFloat(inpE.value);
+    panBar.style.cursor = 'grabbing';
+  }
+
+  function panMove(clientX) {
+    if (!panActive) return;
+    const rect   = wrap.getBoundingClientRect();
+    const deltaPx = clientX - panStartX;
+    const deltaVal = (deltaPx / rect.width) * 24;
+    const width  = panStartE - panStartS;
+    let newS = panStartS + deltaVal;
+    let newE = panStartE + deltaVal;
+    // Clamp
+    if (newS < 0) { newS = 0; newE = width; }
+    if (newE > 24) { newE = 24; newS = 24 - width; }
+    inpS.value = Math.round(newS * 4) / 4;  // snap to 0.25 step
+    inpE.value = Math.round(newE * 4) / 4;
+    onMealWindowChange();
+  }
+
+  function panEnd() {
+    panActive = false;
+    panBar.style.cursor = 'grab';
+  }
+
+  panBar.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    panStart(e.clientX);
+  });
+  panBar.addEventListener('touchstart', (e) => {
+    e.stopPropagation();
+    panStart(e.touches[0].clientX);
+  }, { passive: true });
+
+  document.addEventListener('mousemove', (e) => { if (panActive) panMove(e.clientX); });
+  document.addEventListener('touchmove', (e) => { if (panActive) panMove(e.touches[0].clientX); }, { passive: true });
+  document.addEventListener('mouseup',  panEnd);
+  document.addEventListener('touchend', panEnd);
 });
 
 // Init
