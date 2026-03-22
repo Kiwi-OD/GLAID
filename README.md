@@ -5,7 +5,7 @@ Chat with your data and extract insights!
 
 Should work for most pumps but currently tailored for Tandem (see section [Hypo Treatment Detection](#hypo-treatment-detection)).
 
-![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta1-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
+![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta2-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
 ---
 
@@ -18,10 +18,11 @@ Should work for most pumps but currently tailored for Tandem (see section [Hypo 
   - 🔵 **Meal bolus** — blue flag showing grams of carbohydrate and units delivered
   - 🔴 **Correction bolus** — red flag showing units delivered
   - 🟠 **Hypoglycaemia treatment** — orange flag (boluses of exactly 0.05 U), labelled with the configured carbohydrate amount
-- **Glucose by Hour of Day** — percentile bands (5–95th, 25–75th), smoothed median, raw (unsmoothed) median, and mean glucose curves. Average basal rate and an **Adjusted Basal** suggestion are overlaid on a right-hand axis. A basal info box shows Avg Basal/day, Adjusted Basal/day, and the difference. Hover to highlight the hour slot and see a detailed tooltip showing both smoothed and raw median values. Curves extend to 00:00 for a complete 24-hour view.
-- **Insulin, Carbs & Hypoglycaemia Treatments by Hour of Day** — side-by-side bar chart showing average grams of carbohydrate, average bolus units, and hypoglycaemia treatment frequency per hour. Hovering highlights the hour slot across both HOD plots simultaneously.
-- **Post-Prandial Glucose Excursion by Hour of Day** — for each meal bolus, plots Δ interstitial glucose at +3 h and +4 h after the bolus time, bucketed by the hour the bolus was taken. Data points are placed at the exact bolus timestamp. Tooltip shows the mean Δ at each time offset, meal count, and average carbohydrate-to-insulin ratio (ICR) in g/U for that hour.
-- **Post-Prandial Interstitial Glucose Trace (0–4 h)** — overlays individual 4-hour CGM traces for all meal boluses administered within a user-selected daily time window. Displays a bold cohort median trace and an interquartile range (IQR, 25th–75th percentile) shaded band. CGM readings are interpolated to a uniform 5-minute grid and normalised to the pre-meal interstitial glucose at time 0 (bolus administration). See [Post-Prandial Glucose Trace](#post-prandial-glucose-trace) for details.
+- **Glucose by Hour of Day** — percentile bands (5–95th, 25–75th), smoothed median, raw (unsmoothed) median, and mean glucose curves. Average basal rate and an **Adjusted Basal** suggestion are overlaid on a right-hand axis. A basal info box shows Avg Basal/day, Adjusted Basal/day, and the difference. Hover to highlight the hour slot and see a detailed tooltip. Curves extend to 00:00 for a complete 24-hour view.
+- **Glucose Rate of Change by Hour of Day** — a compact chart directly below the glucose/basal plot showing the per-hour distribution of glucose rate of change (mmol/L/h), computed via central differencing. Displays IQR band, smoothed median, and mean. Hover on either plot highlights the same hour in both simultaneously.
+- **Insulin, Carbs & Hypoglycaemia Treatments by Hour of Day** — side-by-side bar chart showing average grams of carbohydrate, average bolus units, and hypoglycaemia treatment frequency per hour. Bars are averaged over days with actual events in each slot (not total period days). Hovering highlights the hour slot.
+- **Post-Prandial Glucose Excursion by Hour of Day** — for each meal bolus, plots Δ interstitial glucose at +3 h and +4 h after the bolus time, bucketed by the hour the bolus was taken. Column highlight overlay on hover.
+- **Post-Prandial Interstitial Glucose Trace (0–4 h)** — overlays individual 4-hour CGM traces for all meal boluses administered within a user-selected daily time window. Displays a bold cohort median trace and an IQR shaded band. Hover tooltip shows median, IQR, mean, and meal count at each 5-minute timepoint. See [Post-Prandial Glucose Trace](#post-prandial-glucose-trace) for details.
 
 ### Statistics
 
@@ -38,7 +39,7 @@ Statistics cards are displayed **above** the main Glucose & Insulin chart and al
 | Total Daily Insulin | Combined basal and bolus insulin in U/day |
 | Estimated Insulin Sensitivity | Calculated via the 100/TDD rule (mmol/L/U) |
 | Basal / Bolus | Split as % with U/day sub-label |
-| Avg Carbs / Day | Mean carbohydrate intake (g/day) from bolus records |
+| Avg Carbs / Day | Mean carbohydrate intake (g/day) from bolus records; a secondary line shows the value including hypoglycaemia treatment carbohydrates when present |
 | Total Bolus Doses | Count of all bolus events in the selected period |
 | Hypoglycaemia Treatments | Count, frequency per day, and configured carbohydrate dose |
 
@@ -67,6 +68,7 @@ The controls bar is **sticky** — it remains pinned to the top of the viewport 
 - **◀ ▶ navigation arrows** — shift the current date window backwards or forwards by one full period (e.g. pressing ▶ while viewing a 1-week window advances by 7 days). Arrows are disabled at the data boundaries.
 - **Custom date range** — from/to date pickers
 - **Target range** — 3.9–7.8 mmol/L (tight glycaemic control) or 4.0–10.0 mmol/L (standard)
+- **Target glucose** — target interstitial glucose value (default 6.0 mmol/L) used in the Adjusted Basal calculation
 - **DIA** — duration of insulin action for IOB calculation (3–6 h, default 5 h)
 - **Age & Weight** — used to contextualise TDD/kg in the AI analysis
 - **Hypoglycaemia treatment size** — configurable carbohydrate dose (default 15 g) applied to all 0.05 U boluses
@@ -198,6 +200,30 @@ All AI-generated analysis — including pattern summaries, insulin dosing commen
 ---
 
 ## Changelog
+
+### v0.26.2-beta2 (2026-03-22)
+
+**New chart: Glucose Rate of Change by Hour of Day**
+- A compact chart sits directly below the Glucose by Hour of Day / Adjusted Basal plot, showing the distribution of glucose rate of change (mmol/L/h) at each hour of the day.
+- Rate of change computed via central differencing of individual CGM readings, binned by hour. Displays Gaussian-smoothed median (purple), mean (dashed blue), and IQR band (25th–75th percentile). The 5–95th percentile outer band is omitted to reduce noise.
+- **Synced hover** — moving the pointer over either the glucose chart or the ROC chart highlights the same hour column in both simultaneously. The main glucose tooltip also shows the median ROC for the hovered hour.
+
+**Adjusted Basal — formula rework**
+- The adjusted basal formula was completely rewritten and now has two independent components:
+  1. **Rate-of-change correction** — for each hour h (h = 1…22, non-wrapping to avoid midnight artefacts), the smoothed median ROC is computed via central difference. The correction `ROC / ISF` U/h is split evenly across the two preceding hours (h−1 and h−2), shifting the basal shape to counteract glucose trends.
+  2. **Target glucose offset** — `(avg glucose − target glucose) / ISF` units distributed uniformly across all 24 hours, shifting the overall basal level to steer average glucose toward the user-set target.
+- Previous formula bugs fixed: circular wrap-around artefact (which injected spurious corrections at midnight boundaries) eliminated by using non-wrapping indices; correction bolus component removed (was always additive, overriding negative ROC corrections).
+
+**Target Glucose input**
+- A "Target Glucose" number input (default 6.0 mmol/L, range 3–12) added to the controls bar beside the Target Range selector. Used by the Adjusted Basal level-offset component.
+
+**Statistics**
+- **Avg Carbs / Day** card now shows a secondary line (`* Xg incl. hypo Tx`) with the average daily carbohydrate intake including hypoglycaemia treatment doses, when hypo treatments are present in the selected period.
+
+**Bug fixes**
+- **Navigation arrows date drift** — pressing ◀ then ▶ (or vice versa) no longer shifts the date window by 1–2 days. Root cause: `fmtDateInput` used `toISOString()` which returns UTC, so in UTC+1/+2 timezones local midnight was formatted as the previous calendar day. Fixed to use local date components (`getFullYear()`, `getMonth()`, `getDate()`).
+
+---
 
 ### v0.26.2-beta1 (2026-03-18)
 
