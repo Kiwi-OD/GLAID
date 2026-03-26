@@ -25,6 +25,78 @@
     --target: #10b981;
     --hypo: #f97316;
   }
+  [data-theme="light"] {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface2: #e8eef5;
+    --border: #c8d6e5;
+    --teal: #00a896;
+    --amber: #d97706;
+    --rose: #e11d48;
+    --blue: #2563eb;
+    --purple: #7c3aed;
+    --text: #0f172a;
+    --muted: #64748b;
+    --low: #dc2626;
+    --high: #d97706;
+    --target: #059669;
+    --hypo: #ea580c;
+  }
+  [data-theme="light"] body::before {
+    background-image: linear-gradient(rgba(0,168,150,0.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,168,150,0.05) 1px, transparent 1px);
+  }
+  [data-theme="light"] .dia-select { color: var(--teal); }
+  [data-theme="light"] .bolus-tooltip { border-color: var(--teal); }
+  #themeToggle {
+    display: none; /* hidden — using label/checkbox switch instead */
+  }
+  .theme-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .theme-switch input { display: none; }
+  .theme-switch-track {
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    position: relative;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+  }
+  .theme-switch input:checked + .theme-switch-track {
+    background: rgba(0,212,177,0.2);
+    border-color: var(--teal);
+  }
+  .theme-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: transform 0.2s, background 0.2s;
+  }
+  .theme-switch input:checked ~ .theme-switch-thumb,
+  .theme-switch-track .theme-switch-thumb {
+    background: var(--muted);
+  }
+  .theme-switch input:checked + .theme-switch-track .theme-switch-thumb {
+    transform: translateX(18px);
+    background: var(--teal);
+  }
+  .theme-switch-icon {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: var(--bg);
@@ -467,7 +539,16 @@
 <div class="container">
   <header>
     <div class="header-inner">
-      <div class="logo">GL<span class="ai">AI</span>D</div>
+      <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+        <div class="logo">GL<span class="ai">AI</span>D</div>
+        <label class="theme-switch" title="Toggle light/dark theme" onclick="toggleTheme(); return false;">
+          <input type="checkbox" id="themeCheckbox" readonly>
+          <div class="theme-switch-track">
+            <div class="theme-switch-thumb"></div>
+          </div>
+          <span class="theme-switch-icon" id="themeIcon">☀</span>
+        </label>
+      </div>
       <div class="file-drop-zone" id="dropZone">
         <input type="file" id="fileInput" accept=".zip" onchange="handleFile(this.files[0])">
         <div class="file-icon">📂</div>
@@ -476,6 +557,7 @@
           <small id="fileInfo">Click or drag &amp; drop your export file</small>
         </div>
       </div>
+      <button id="themeToggle" style="display:none"></button>
     </div>
   </header>
 
@@ -555,33 +637,40 @@
     <div class="stat-card">
       <div class="stat-label">Average Glucose</div>
       <div class="stat-value teal" id="statAvg">—<span class="stat-unit">mmol/L</span></div>
+      <div class="stat-sub stat-trend" id="statAvgTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Time in Range</div>
       <div class="stat-value green" id="statTIR">—<span class="stat-unit">%</span></div>
       <div class="stat-sub">3.9 – 10.0 mmol/L</div>
+      <div class="stat-sub stat-trend" id="statTIRTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Time Below Range</div>
       <div class="stat-value red" id="statLow">—<span class="stat-unit">%</span></div>
       <div class="stat-sub">&lt; 3.9 mmol/L</div>
+      <div class="stat-sub stat-trend" id="statLowTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Time Above Range</div>
       <div class="stat-value amber" id="statHigh">—<span class="stat-unit">%</span></div>
       <div class="stat-sub">&gt; 10.0 mmol/L</div>
+      <div class="stat-sub stat-trend" id="statHighTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">GMI (est. HbA1c)</div>
       <div class="stat-value blue" id="statGMI">—<span class="stat-unit">mmol/mol</span></div>
+      <div class="stat-sub stat-trend" id="statGMITrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Glucose Variability</div>
       <div class="stat-value" id="statCV">—<span class="stat-unit">%CV</span></div>
+      <div class="stat-sub stat-trend" id="statCVTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Total Daily Insulin</div>
       <div class="stat-value teal" id="statTDI">—<span class="stat-unit">U/day</span></div>
+      <div class="stat-sub stat-trend" id="statTDITrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Estimated Insulin Sensitivity</div>
@@ -598,15 +687,18 @@
       <div class="stat-value blue" id="statCarbs">—<span class="stat-unit">g</span></div>
       <div class="stat-sub" id="statCarbsSub">from bolus records</div>
       <div class="stat-sub" id="statCarbsHypoSub" style="display:none"></div>
+      <div class="stat-sub stat-trend" id="statCarbsTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Total Bolus Doses</div>
       <div class="stat-value" id="statBoluses">—</div>
+      <div class="stat-sub stat-trend" id="statBolusesTrend" style="display:none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label" style="color:#f97316">Hypo Treatments</div>
       <div class="stat-value" id="statHypos" style="color:#f97316">—</div>
       <div class="stat-sub" id="statHyposSub">0.05U boluses detected</div>
+      <div class="stat-sub stat-trend" id="statHyposTrend" style="display:none"></div>
     </div>
   </div>
 
@@ -775,6 +867,21 @@
       <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.7">
         Interstitial glucose traces are plotted for 4 hours following each meal bolus administered within the selected daily time window. The bold line represents the cohort median trace. Shaded band = interquartile range (25th–75th percentile). CGM readings are interpolated to a 5-minute grid. Pre-meal CGM reference is defined as the interstitial glucose at time 0 (bolus administration).
       </div>
+
+      <!-- Post-hypo treatment glucose trace -->
+      <div id="hypoTraceSection" style="display:none;margin-top:20px">
+        <div class="tod-header" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div class="tod-title" style="color:#f97316">Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)</div>
+          <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="hypoTraceNLabel"></span>
+        </div>
+        <div style="position:relative;display:block">
+          <canvas id="hypoTraceCanvas" height="260" style="width:100%;display:block"></canvas>
+          <canvas id="hypoTraceOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+        </div>
+        <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.7">
+          Interstitial glucose traces are plotted for 4 hours following each hypoglycaemia treatment event (0.05 U bolus used as a carbohydrate rescue signal). The bold line represents the cohort median. Shaded band = interquartile range. Δ glucose is normalised to the interstitial glucose at time 0 (treatment administration). A value of 0 indicates no change from the pre-treatment level.
+        </div>
+      </div>
     </div>
 
   </div>
@@ -928,6 +1035,7 @@
 
 <div class="bolus-tooltip" id="bolusTooltip"></div>
 <div class="bolus-tooltip" id="mealTraceTooltip" style="max-width:230px;line-height:1.6"></div>
+<div class="bolus-tooltip" id="hypoTraceTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mainChartTooltip" style="max-width:260px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mealRespTooltip" style="max-width:230px;line-height:1.6"></div>
 
@@ -1937,20 +2045,21 @@ Chart.register({
     if (!yScale || !xScale) return;
     const yLow = yScale.getPixelForValue(targetRange.low);
     const yHigh = yScale.getPixelForValue(targetRange.high);
+    const light = isLight();
     ctx.save();
-    ctx.fillStyle = 'rgba(16,185,129,0.06)';
+    ctx.fillStyle = light ? 'rgba(16,185,129,0.10)' : 'rgba(16,185,129,0.06)';
     ctx.fillRect(xScale.left, yHigh, xScale.width, yLow - yHigh);
     ctx.beginPath();
     ctx.moveTo(xScale.left, yLow);
     ctx.lineTo(xScale.right, yLow);
-    ctx.strokeStyle = 'rgba(239,68,68,0.3)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = light ? '#dc2626' : 'rgba(239,68,68,0.3)';
+    ctx.lineWidth = light ? 1.5 : 1;
     ctx.setLineDash([4,4]);
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(xScale.left, yHigh);
     ctx.lineTo(xScale.right, yHigh);
-    ctx.strokeStyle = 'rgba(245,158,11,0.3)';
+    ctx.strokeStyle = light ? '#d97706' : 'rgba(245,158,11,0.3)';
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
@@ -1958,6 +2067,34 @@ Chart.register({
 });
 
 // ─── Statistics ───────────────────────────────────────────────────────────────
+function computePeriodStats(cgm, basal, bolus, spanMs) {
+  if (!cgm.length) return null;
+  const glcs = cgm.map(r => r.glc);
+  const avg = mean(glcs);
+  const sd = stddev(glcs);
+  const days = spanMs / 86400000;
+  const basalUnits = basal.reduce((s,b) => s + (b.units||0), 0);
+  const bolusUnits = bolus.reduce((s,b) => s + (b.insulin||0), 0);
+  const tdi = (basalUnits + bolusUnits) / Math.max(days, 1/24);
+  const hypos = bolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
+  const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+  const totalCarbs = bolus.reduce((s,b) => s + (b.carbs||0), 0);
+  return {
+    avg,
+    tir: glcs.filter(g => g >= targetRange.low && g <= targetRange.high).length / glcs.length * 100,
+    tbr: glcs.filter(g => g < targetRange.low).length / glcs.length * 100,
+    tar: glcs.filter(g => g > targetRange.high).length / glcs.length * 100,
+    cv:  sd / avg * 100,
+    gmiMmol: Math.round(((3.31 + 0.02392 * avg * 18.015) - 2.15) * 10.929),
+    tdi,
+    avgCarbs: days > 0 ? totalCarbs / days : 0,
+    bolusCount: bolus.length,
+    hypoCount: hypos.length,
+    hypoPerDay: days > 0 ? hypos.length / days : 0,
+    days,
+  };
+}
+
 function updateStats() {
   if (rawCGM.length === 0) {
     document.getElementById('statsGrid').style.display = 'none';
@@ -1970,30 +2107,52 @@ function updateStats() {
   document.getElementById('hodAndTraceRow').style.display = 'grid';
   document.getElementById('mealTraceSection').style.display = 'block';
 
-  // Use visible view range if available, else full filtered range
+  // Current period
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
   const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+  const spanMs = vMax - vMin;
   const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
   const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
   const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
 
   if (visCGM.length === 0) return;
 
-  const glcs = visCGM.map(r => r.glc);
-  const avg = mean(glcs);
-  const sd = stddev(glcs);
-  const cv = (sd / avg * 100);
-  const tir = glcs.filter(g => g >= targetRange.low && g <= targetRange.high).length / glcs.length * 100;
-  const tbr = glcs.filter(g => g < targetRange.low).length / glcs.length * 100;
-  const tar = glcs.filter(g => g > targetRange.high).length / glcs.length * 100;
+  const cur = computePeriodStats(visCGM, visBasal, visBolus, spanMs);
+  const days = cur.days;
+
+  // Previous period (same span, immediately before)
+  const pMin = vMin - spanMs;
+  const pMax = vMin;
+  const prevCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax; });
+  const prevBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax; });
+  const prevBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax; });
+  const prev = prevCGM.length >= 12 ? computePeriodStats(prevCGM, prevBasal, prevBolus, spanMs) : null;
+
+  // Helper: render a trend sub-label
+  // delta = current - previous; positiveGood = true means ↑ is shown in green
+  function setTrend(id, delta, fmt, positiveGood, suffix = '') {
+    const el = document.getElementById(id);
+    if (!el || delta === null || !isFinite(delta)) { if (el) el.style.display = 'none'; return; }
+    const improved = positiveGood ? delta > 0 : delta < 0;
+    const worsened = positiveGood ? delta < 0 : delta > 0;
+    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '●';
+    const colour = Math.abs(delta) < 0.01 * Math.abs(fmt === 'pct' ? 1 : 1)
+      ? 'var(--muted)'
+      : improved ? 'var(--target)' : worsened ? 'var(--rose)' : 'var(--muted)';
+    const sign = delta > 0 ? '+' : '';
+    const valStr = fmt === 'pct' ? `${sign}${delta.toFixed(1)}%`
+                 : fmt === 'int' ? `${sign}${Math.round(delta)}`
+                 : fmt === '1dp' ? `${sign}${delta.toFixed(1)}`
+                 : `${sign}${delta.toFixed(0)}`;
+    el.innerHTML = `<span style="color:${colour};font-size:0.7rem">${arrow} ${valStr}${suffix} vs prev period</span>`;
+    el.style.display = 'block';
+  }
+
+  // Current values
+  const { avg, tir, tbr, tar, cv, gmiMmol, tdi, avgCarbs, bolusCount, hypoCount, hypoPerDay } = cur;
   const avgMgdl = avg * 18.015;
   const gmiPct = 3.31 + 0.02392 * avgMgdl;
-  const gmiMmol = Math.round((gmiPct - 2.15) * 10.929);
-
-  const basalUnits = visBasal.reduce((s,b) => s + (b.units || 0), 0);
-  const bolusUnits = visBolus.reduce((s,b) => s + (b.insulin || 0), 0);
-  const days = (vMax - vMin) / 86400000;
-  const tdi = (basalUnits + bolusUnits) / Math.max(days, 1/24);
+  const isfMmol = tdi > 0 ? 100 / tdi : null;
 
   document.getElementById('statAvg').innerHTML = avg.toFixed(1) + '<span class="stat-unit">mmol/L</span>';
   document.getElementById('statTIR').innerHTML = tir.toFixed(0) + '<span class="stat-unit">%</span>';
@@ -2006,8 +2165,6 @@ function updateStats() {
   document.getElementById('statCV').innerHTML = cv.toFixed(0) + '<span class="stat-unit">%CV</span>';
   document.getElementById('statTDI').innerHTML = tdi.toFixed(1) + '<span class="stat-unit">U/day</span>';
 
-  // ISF: 100/TDD rule for mmol/L (equivalent to 1800/TDD in mg/dL)
-  const isfMmol = tdi > 0 ? 100 / tdi : null;
   if (isfMmol !== null) {
     document.getElementById('statISF').innerHTML = isfMmol.toFixed(1) + '<span class="stat-unit">mmol/L/U</span>';
     document.getElementById('statISFSub').textContent = `100 ÷ ${tdi.toFixed(1)} U/day`;
@@ -2015,6 +2172,8 @@ function updateStats() {
     document.getElementById('statISF').innerHTML = '—';
   }
 
+  const basalUnits = visBasal.reduce((s,b) => s + (b.units||0), 0);
+  const bolusUnits = visBolus.reduce((s,b) => s + (b.insulin||0), 0);
   const basalPct = (basalUnits + bolusUnits) > 0 ? Math.round(basalUnits / (basalUnits + bolusUnits) * 100) : null;
   const bolusPct = basalPct !== null ? 100 - basalPct : null;
   if (basalPct !== null) {
@@ -2029,9 +2188,8 @@ function updateStats() {
   }
 
   const totalCarbs = visBolus.reduce((s, b) => s + (b.carbs || 0), 0);
-  const avgCarbs = days > 0 ? totalCarbs / days : 0;
-  const hypoTreatments = visBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
   const hypoCarbsVal = parseFloat(document.getElementById('hypoCarbs').value) || 15;
+  const hypoTreatments = visBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
   const totalHypoCarbs = hypoTreatments.length * hypoCarbsVal;
   const avgCarbsWithHypo = days > 0 ? (totalCarbs + totalHypoCarbs) / days : 0;
 
@@ -2048,9 +2206,27 @@ function updateStats() {
 
   document.getElementById('statBoluses').innerHTML = visBolus.length + '';
 
-  const hypoPerDay = days > 0 ? (hypoTreatments.length / days).toFixed(1) : '—';
+  const hypoPerDayVal = days > 0 ? hypoTreatments.length / days : 0;
   document.getElementById('statHypos').innerHTML = hypoTreatments.length + '';
-  document.getElementById('statHyposSub').textContent = `${hypoPerDay}/day · ${hypoCarbsVal}g carbs each`;
+  document.getElementById('statHyposSub').textContent = `${hypoPerDayVal.toFixed(1)}/day · ${hypoCarbsVal}g carbs each`;
+
+  // ── Previous-period trend labels ─────────────────────────────────────────────
+  if (prev) {
+    setTrend('statAvgTrend',    avg - prev.avg,           '1dp', false, ' mmol/L');
+    setTrend('statTIRTrend',    tir - prev.tir,           'pct',  true);
+    setTrend('statLowTrend',    tbr - prev.tbr,           'pct', false);
+    setTrend('statHighTrend',   tar - prev.tar,           'pct', false);
+    setTrend('statGMITrend',    gmiMmol - prev.gmiMmol,  'int', false, ' mmol/mol');
+    setTrend('statCVTrend',     cv - prev.cv,             '1dp', false, '%');
+    setTrend('statTDITrend',    tdi - prev.tdi,           '1dp', false, ' U/day');
+    setTrend('statCarbsTrend',  avgCarbs - prev.avgCarbs, 'int', false, ' g/day');
+    setTrend('statBolusesTrend', (bolusCount / Math.max(days,1)) - (prev.bolusCount / Math.max(prev.days,1)), '1dp', false, '/day');
+    setTrend('statHyposTrend',  hypoPerDayVal - prev.hypoPerDay, '1dp', false, '/day');
+  } else {
+    ['statAvgTrend','statTIRTrend','statLowTrend','statHighTrend','statGMITrend',
+     'statCVTrend','statTDITrend','statCarbsTrend','statBolusesTrend','statHyposTrend']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  }
 
   const tirEl = document.getElementById('statTIR');
   tirEl.className = 'stat-value';
@@ -2060,6 +2236,7 @@ function updateStats() {
 
   buildTOD(visCGM, visBasal, isfMmol, visBolus);
   buildMealTrace(visCGM, visBolus);
+  buildHypoTrace(visCGM, visBolus);
 }
 
 // ─── Post-Prandial Glucose Trace (0–4 h) ─────────────────────────────────────
@@ -2225,8 +2402,8 @@ function buildMealTrace(visCGM, visBolus) {
     const y = toY(v);
     ctx.save();
     ctx.setLineDash([6, 4]);
-    ctx.strokeStyle = v > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = v > 0 ? (isLight() ? '#d97706' : 'rgba(245,158,11,0.6)') : (isLight() ? '#dc2626' : 'rgba(239,68,68,0.6)');
+    ctx.lineWidth = isLight() ? 2 : 1.2;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
     ctx.restore();
   });
@@ -2356,6 +2533,224 @@ function buildMealTrace(visCGM, visBolus) {
     colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
 }
 
+// ─── Post-Hypo Treatment Glucose Trace (0–4 h) ───────────────────────────────
+function buildHypoTrace(visCGM, visBolus) {
+  const section = document.getElementById('hypoTraceSection');
+  const canvas  = document.getElementById('hypoTraceCanvas');
+  if (!canvas || !section) return;
+
+  const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
+  function cgmNear(targetMs, tolMs = 600000) {
+    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
+      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
+      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return best && bestDiff <= tolMs ? best.glc : null;
+  }
+
+  // Identify hypo treatment events: 0.05 U boluses with no carb entry
+  const hypos = visBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
+
+  const STEP = 5;
+  const STEPS = 240 / STEP + 1;
+  const traces = [];
+  for (const h of hypos) {
+    const ms = h.ts.getTime();
+    const g0 = cgmNear(ms, 600000);
+    if (g0 === null) continue;
+    const pts = [];
+    for (let i = 0; i < STEPS; i++) {
+      const gv = cgmNear(ms + i * STEP * 60000, 360000);
+      pts.push(gv !== null ? gv - g0 : null);
+    }
+    const nonNull = pts.filter(v => v !== null).length;
+    if (nonNull / pts.length < 0.7) continue;
+    traces.push({ pts, g0 });
+  }
+
+  document.getElementById('hypoTraceNLabel').textContent =
+    `${traces.length} event${traces.length !== 1 ? 's' : ''}`;
+
+  section.style.display = traces.length > 0 ? 'block' : 'none';
+  if (traces.length === 0) return;
+
+  // ── Canvas setup ─────────────────────────────────────────────────────────────
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
+  const cssH = 260;
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = cssW, H = cssH;
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = { top: 20, right: 20, bottom: 32, left: 56 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  const allDeltas = traces.flatMap(tr => tr.pts.filter(v => v !== null));
+  const yMin = Math.min(Math.floor(Math.min(...allDeltas) - 0.5), -1.5);
+  const yMax = Math.max(Math.ceil( Math.max(...allDeltas) + 0.5),  3.0);
+
+  const toX = (minOffset) => PAD.left + (minOffset / 240) * plotW;
+  const toY = (v) => PAD.top + plotH * (1 - (v - yMin) / (yMax - yMin));
+
+  // Backgrounds
+  ctx.fillStyle = 'rgba(245,158,11,0.04)';
+  ctx.fillRect(PAD.left, toY(yMax), plotW, toY(0) - toY(yMax));
+  ctx.fillStyle = 'rgba(239,68,68,0.04)';
+  ctx.fillRect(PAD.left, toY(0), plotW, toY(yMin) - toY(0));
+
+  // Grid lines
+  ctx.setLineDash([3, 3]);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'right';
+  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
+    const y = toY(v);
+    ctx.strokeStyle = v === 0 ? 'rgba(100,116,139,0.5)' : 'rgba(31,45,69,0.8)';
+    ctx.lineWidth = v === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,116,139,0.7)';
+    ctx.fillText(`${v}`, PAD.left - 4, y + 3.5);
+  }
+  ctx.setLineDash([]);
+
+  // ±2 mmol/L dashed reference lines
+  [-2, 2].forEach(v => {
+    if (v < yMin || v > yMax) return;
+    const y = toY(v);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = v > 0 ? (isLight() ? '#d97706' : 'rgba(245,158,11,0.6)') : (isLight() ? '#dc2626' : 'rgba(239,68,68,0.6)');
+    ctx.lineWidth = isLight() ? 2 : 1.2;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.restore();
+  });
+
+  // Zero line label
+  ctx.fillStyle = 'rgba(100,116,139,0.5)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('pre-treatment baseline', PAD.left + 4, toY(0) - 3);
+
+  // X axis
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'center';
+  [0, 30, 60, 90, 120, 150, 180, 210, 240].forEach(t => {
+    const x = toX(t);
+    ctx.fillText(`+${t} min`, x, H - 6);
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.bottom); ctx.lineTo(x, H - PAD.bottom + 4); ctx.stroke();
+  });
+
+  // Left Y axis label
+  ctx.save();
+  ctx.translate(13, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(249,115,22,0.8)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Δ Interstitial Glucose (mmol/L)', 0, 0);
+  ctx.restore();
+
+  // Individual traces (faint orange)
+  const alpha = Math.min(0.5, Math.max(0.07, 50 / traces.length));
+  for (const tr of traces) {
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < STEPS; i++) {
+      if (tr.pts[i] === null) { started = false; continue; }
+      const x = toX(i * STEP), y = toY(tr.pts[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(249,115,22,${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  // Per-timepoint stats
+  const colMedian = new Array(STEPS).fill(null);
+  const colP25    = new Array(STEPS).fill(null);
+  const colP75    = new Array(STEPS).fill(null);
+  const colN      = new Array(STEPS).fill(0);
+  const colMean   = new Array(STEPS).fill(null);
+  function pctile(sorted, p) {
+    if (!sorted.length) return null;
+    const idx = (p / 100) * (sorted.length - 1);
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+  for (let i = 0; i < STEPS; i++) {
+    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
+    colN[i] = col.length;
+    if (col.length < 2) continue;
+    const s = [...col].sort((a,b) => a - b);
+    colMedian[i] = pctile(s, 50);
+    colP25[i]    = pctile(s, 25);
+    colP75[i]    = pctile(s, 75);
+    colMean[i]   = col.reduce((a,b) => a + b, 0) / col.length;
+  }
+
+  // IQR band (orange)
+  const iqrPts = Array.from({length: STEPS}, (_, i) => colP25[i] !== null ? [toX(i*STEP), toY(colP25[i])] : null).filter(Boolean);
+  const iqrTop = Array.from({length: STEPS}, (_, i) => colP75[i] !== null ? [toX(i*STEP), toY(colP75[i])] : null).filter(Boolean);
+  if (iqrTop.length > 1 && iqrPts.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
+    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
+    for (let i = iqrPts.length - 1; i >= 0; i--) ctx.lineTo(iqrPts[i][0], iqrPts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(249,115,22,0.18)';
+    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
+    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
+    ctx.strokeStyle = 'rgba(249,115,22,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iqrPts[0][0], iqrPts[0][1]);
+    for (const [x, y] of iqrPts) ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  // Median trace (bold orange)
+  ctx.beginPath();
+  let mStarted = false;
+  for (let i = 0; i < STEPS; i++) {
+    if (colMedian[i] === null) { mStarted = false; continue; }
+    const x = toX(i * STEP), y = toY(colMedian[i]);
+    if (!mStarted) { ctx.moveTo(x, y); mStarted = true; } else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#f97316';
+  ctx.lineWidth = 3.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // Legend
+  ctx.fillStyle = 'rgba(249,115,22,0.8)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('Median', PAD.left + 8, PAD.top + 14);
+  ctx.fillStyle = 'rgba(249,115,22,0.22)';
+  ctx.fillRect(PAD.left + 50, PAD.top + 6, 14, 8);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.fillText('IQR', PAD.left + 66, PAD.top + 14);
+
+  canvas._hypoTrace = { PAD, plotW, plotH, toX, toY, STEP, STEPS,
+    colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
+}
+
 function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   if (!visCGM) {
     const vMin = viewMin ?? rawCGM[0].ts.getTime();
@@ -2470,7 +2865,7 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   ctx.clearRect(0, 0, W, H);
 
   // Target band
-  ctx.fillStyle = 'rgba(16,185,129,0.06)';
+  ctx.fillStyle = isLight() ? 'rgba(16,185,129,0.10)' : 'rgba(16,185,129,0.06)';
   ctx.fillRect(PAD.left, toY(targetRange.high), plotW, toY(targetRange.low) - toY(targetRange.high));
 
   // Horizontal grid lines at mmol/L integers
@@ -2491,20 +2886,20 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   ctx.setLineDash([]);
 
   // Target range dashed borders
-  ctx.strokeStyle = 'rgba(239,68,68,0.35)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = isLight() ? '#dc2626' : 'rgba(239,68,68,0.35)';
+  ctx.lineWidth = isLight() ? 1.5 : 1;
   ctx.setLineDash([4, 4]);
   ctx.beginPath(); ctx.moveTo(PAD.left, toY(targetRange.low)); ctx.lineTo(W - PAD.right, toY(targetRange.low)); ctx.stroke();
-  ctx.strokeStyle = 'rgba(245,158,11,0.35)';
+  ctx.strokeStyle = isLight() ? '#d97706' : 'rgba(245,158,11,0.35)';
   ctx.beginPath(); ctx.moveTo(PAD.left, toY(targetRange.high)); ctx.lineTo(W - PAD.right, toY(targetRange.high)); ctx.stroke();
   ctx.setLineDash([]);
 
   // Target range labels
   ctx.font = '10px DM Mono, monospace';
   ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(239,68,68,0.6)';
+  ctx.fillStyle = isLight() ? '#dc2626' : 'rgba(239,68,68,0.6)';
   ctx.fillText(targetRange.low + ' mmol/L', PAD.left + 3, toY(targetRange.low) - 3);
-  ctx.fillStyle = 'rgba(245,158,11,0.6)';
+  ctx.fillStyle = isLight() ? '#d97706' : 'rgba(245,158,11,0.6)';
   ctx.fillText(targetRange.high + ' mmol/L', PAD.left + 3, toY(targetRange.high) - 3);
 
   // ── Valid hour indices ───────────────────────────────────────────────────────
@@ -2839,6 +3234,7 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   buildBolusHOD(visBolus2, vMin2, vMax2);
   buildMealResponse(visCGM, visBolus2);
   buildMealTrace(visCGM, visBolus2);
+  buildHypoTrace(visCGM, visBolus2);
 }
 
 // ─── Glucose Rate of Change by Hour of Day ───────────────────────────────────
@@ -3262,6 +3658,10 @@ function buildBolusHOD(visBolus, vMin, vMax) {
   canvas._hodData  = { avgCarbs, avgBolus, avgHypo, hourCarbs, hourBolus, hourHypo, hypoCarbsVal, days, hourDayCounts };
 }
 
+function isLight() {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
 function mean(arr) {
   return arr.reduce((s,v) => s+v, 0) / arr.length;
 }
@@ -3391,8 +3791,8 @@ function buildMealResponse(visCGM, visBolus) {
     const y = toY(v);
     ctx.save();
     ctx.setLineDash([6, 4]);
-    ctx.strokeStyle = v > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = v > 0 ? (isLight() ? '#d97706' : 'rgba(245,158,11,0.6)') : (isLight() ? '#dc2626' : 'rgba(239,68,68,0.6)');
+    ctx.lineWidth = isLight() ? 2 : 1.2;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
     ctx.restore();
   });
@@ -4239,6 +4639,69 @@ document.addEventListener('mousemove', (e) => {
     }
   }
 
+  // ── Post-hypo treatment glucose trace tooltip ─────────────────────────────────
+  {
+    const htCanvas = document.getElementById('hypoTraceCanvas');
+    const htTip    = document.getElementById('hypoTraceTooltip');
+    if (htCanvas && htCanvas._hypoTrace && htTip) {
+      const htRect = htCanvas.getBoundingClientRect();
+      if (e.clientX >= htRect.left && e.clientX <= htRect.right &&
+          e.clientY >= htRect.top  && e.clientY <= htRect.bottom) {
+        const { PAD: hPAD, plotW: hPlotW, STEP: hSTEP, STEPS: hSTEPS,
+                colMedian, colP25, colP75, colMean, colN } = htCanvas._hypoTrace;
+        const xRel = e.clientX - htRect.left - hPAD.left;
+        if (xRel >= 0 && xRel <= hPlotW) {
+          const idx = Math.max(0, Math.min(hSTEPS - 1, Math.round((xRel / hPlotW) * 240 / hSTEP)));
+          const tMin = idx * hSTEP;
+          const n = colN[idx];
+          if (n > 0) {
+            const htOverlay = document.getElementById('hypoTraceOverlay');
+            if (htOverlay) {
+              const dpr = window.devicePixelRatio || 1;
+              const cssW = htRect.width, cssH = htRect.height;
+              htOverlay.width  = cssW * dpr; htOverlay.height = cssH * dpr;
+              htOverlay.style.width = cssW + 'px'; htOverlay.style.height = cssH + 'px';
+              const oc = htOverlay.getContext('2d');
+              oc.clearRect(0, 0, htOverlay.width, htOverlay.height);
+              oc.save(); oc.scale(dpr, dpr);
+              const x0 = hPAD.left + (tMin / 240) * hPlotW;
+              const x1 = hPAD.left + ((tMin + hSTEP) / 240) * hPlotW;
+              oc.fillStyle = 'rgba(249,115,22,0.10)';
+              oc.fillRect(x0, hPAD.top, x1 - x0, cssH - hPAD.top - hPAD.bottom);
+              oc.strokeStyle = 'rgba(249,115,22,0.35)';
+              oc.lineWidth = 1;
+              oc.beginPath(); oc.moveTo(x0, hPAD.top); oc.lineTo(x0, cssH - hPAD.bottom); oc.stroke();
+              oc.beginPath(); oc.moveTo(x1, hPAD.top); oc.lineTo(x1, cssH - hPAD.bottom); oc.stroke();
+              oc.restore();
+            }
+            const fmt = v => v !== null ? (v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : '—';
+            const tipW = 230;
+            const lft = e.clientX + 14 + tipW > window.innerWidth ? e.clientX - tipW - 8 : e.clientX + 14;
+            htTip.style.left    = lft + 'px';
+            htTip.style.top     = (e.clientY - 10) + 'px';
+            htTip.style.display = 'block';
+            htTip.innerHTML = `<strong>+${tMin} min post-treatment</strong><br>
+              <span style="color:#f97316">Median: ${fmt(colMedian[idx])} mmol/L</span><br>
+              <span style="color:rgba(249,115,22,0.65)">IQR: ${fmt(colP25[idx])} – ${fmt(colP75[idx])} mmol/L</span><br>
+              <span style="color:#3b82f6">Mean: ${fmt(colMean[idx])} mmol/L</span><br>
+              <span style="color:var(--muted)">n = ${n} event${n !== 1 ? 's' : ''}</span>`;
+          } else {
+            htTip.style.display = 'none';
+            const ov = document.getElementById('hypoTraceOverlay');
+            if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
+          }
+        } else {
+          htTip.style.display = 'none';
+          const ov = document.getElementById('hypoTraceOverlay');
+          if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
+        }
+      } else {
+        htTip.style.display = 'none';
+        const ov = document.getElementById('hypoTraceOverlay');
+        if (ov) ov.getContext('2d').clearRect(0, 0, ov.width, ov.height);
+      }
+    }
+  }
   const canvas = document.getElementById('todCanvas');
   const overlay = document.getElementById('todOverlay');
   if (!canvas || !canvas._todGeom) return;
@@ -4415,6 +4878,10 @@ document.addEventListener('mouseleave', () => {
   if (scOv) scOv.getContext('2d').clearRect(0, 0, scOv.width, scOv.height);
   const mtTip = document.getElementById('mealTraceTooltip');
   if (mtTip) mtTip.style.display = 'none';
+  const htOv = document.getElementById('hypoTraceOverlay');
+  if (htOv) htOv.getContext('2d').clearRect(0, 0, htOv.width, htOv.height);
+  const htTip = document.getElementById('hypoTraceTooltip');
+  if (htTip) htTip.style.display = 'none';
 });
 
 // Redraw TOD on resize
@@ -4425,6 +4892,7 @@ window.addEventListener('resize', () => {
     if (dataLoaded) {
       buildTOD();
       if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus);
+      if (mealTraceVisCGM.length) buildHypoTrace(mealTraceVisCGM, mealTraceVisBolus);
     }
   }, 120);
 });
@@ -4541,6 +5009,36 @@ window.addEventListener('load', () => {
   document.addEventListener('mouseup',  panEnd);
   document.addEventListener('touchend', panEnd);
 });
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  const next = isLight ? 'dark' : 'light';
+  html.setAttribute('data-theme', next);
+  const cb = document.getElementById('themeCheckbox');
+  if (cb) cb.checked = next === 'light';
+  const icon = document.getElementById('themeIcon');
+  if (icon) icon.textContent = next === 'light' ? '🌙' : '☀';
+  try { localStorage.setItem('glaid-theme', next); } catch(_) {}
+  if (dataLoaded) { renderChart(); updateStats(); buildTOD(); }
+}
+
+// Restore saved theme
+(function() {
+  try {
+    const saved = localStorage.getItem('glaid-theme');
+    if (saved === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.addEventListener('DOMContentLoaded', () => {
+        const cb = document.getElementById('themeCheckbox');
+        if (cb) cb.checked = true;
+        const icon = document.getElementById('themeIcon');
+        if (icon) icon.textContent = '🌙';
+      });
+    }
+  } catch(_) {}
+})();
 
 // Init
 document.getElementById('dropZone').addEventListener('dragover', e => {

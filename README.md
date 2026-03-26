@@ -5,7 +5,7 @@ Chat with your data and extract insights!
 
 Should work for most pumps but currently tailored for Tandem (see section [Hypo Treatment Detection](#hypo-treatment-detection)).
 
-![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta2-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
+![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta3-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
 ---
 
@@ -23,10 +23,11 @@ Should work for most pumps but currently tailored for Tandem (see section [Hypo 
 - **Insulin, Carbs & Hypoglycaemia Treatments by Hour of Day** — side-by-side bar chart showing average grams of carbohydrate, average bolus units, and hypoglycaemia treatment frequency per hour. Bars are averaged over days with actual events in each slot (not total period days). Hovering highlights the hour slot.
 - **Post-Prandial Glucose Excursion by Hour of Day** — for each meal bolus, plots Δ interstitial glucose at +3 h and +4 h after the bolus time, bucketed by the hour the bolus was taken. Column highlight overlay on hover.
 - **Post-Prandial Interstitial Glucose Trace (0–4 h)** — overlays individual 4-hour CGM traces for all meal boluses administered within a user-selected daily time window. Displays a bold cohort median trace and an IQR shaded band. Hover tooltip shows median, IQR, mean, and meal count at each 5-minute timepoint. See [Post-Prandial Glucose Trace](#post-prandial-glucose-trace) for details.
+- **Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)** — same structure as the post-prandial trace, but for hypoglycaemia treatment events. Shows the typical interstitial glucose recovery trajectory in orange following carbohydrate rescue administration. Only displayed when treatment events are present in the selected period.
 
 ### Statistics
 
-Statistics cards are displayed **above** the main Glucose & Insulin chart and always reflect the currently visible chart window (including zoom/pan state).
+Statistics cards are displayed **above** the main Glucose & Insulin chart and always reflect the currently visible chart window (including zoom/pan state). Each card also shows a **trend indicator** comparing the current period to the immediately preceding period of equal duration — colour-coded green for improvement, red for worsening.
 
 | Metric | Description |
 |--------|-------------|
@@ -72,6 +73,7 @@ The controls bar is **sticky** — it remains pinned to the top of the viewport 
 - **DIA** — duration of insulin action for IOB calculation (3–6 h, default 5 h)
 - **Age & Weight** — used to contextualise TDD/kg in the AI analysis
 - **Hypoglycaemia treatment size** — configurable carbohydrate dose (default 15 g) applied to all 0.05 U boluses
+- **Light / Dark theme toggle** — pill switch next to the logo; preference is persisted in `localStorage`
 
 ---
 
@@ -201,27 +203,49 @@ All AI-generated analysis — including pattern summaries, insulin dosing commen
 
 ## Changelog
 
-### v0.26.2-beta2 (2026-03-22)
+### v0.26.2-beta3 (2026-03-26)
 
 **New chart: Glucose Rate of Change by Hour of Day**
 - A compact chart sits directly below the Glucose by Hour of Day / Adjusted Basal plot, showing the distribution of glucose rate of change (mmol/L/h) at each hour of the day.
 - Rate of change computed via central differencing of individual CGM readings, binned by hour. Displays Gaussian-smoothed median (purple), mean (dashed blue), and IQR band (25th–75th percentile). The 5–95th percentile outer band is omitted to reduce noise.
-- **Synced hover** — moving the pointer over either the glucose chart or the ROC chart highlights the same hour column in both simultaneously. The main glucose tooltip also shows the median ROC for the hovered hour.
+- **Synced hover** — moving the pointer over either the glucose chart or the rate-of-change chart highlights the same hour column in both simultaneously. The main glucose tooltip also shows the median rate of change for the hovered hour.
 
 **Adjusted Basal — formula rework**
-- The adjusted basal formula was completely rewritten and now has two independent components:
-  1. **Rate-of-change correction** — for each hour h (h = 1…22, non-wrapping to avoid midnight artefacts), the smoothed median ROC is computed via central difference. The correction `ROC / ISF` U/h is split evenly across the two preceding hours (h−1 and h−2), shifting the basal shape to counteract glucose trends.
-  2. **Target glucose offset** — `(avg glucose − target glucose) / ISF` units distributed uniformly across all 24 hours, shifting the overall basal level to steer average glucose toward the user-set target.
-- Previous formula bugs fixed: circular wrap-around artefact (which injected spurious corrections at midnight boundaries) eliminated by using non-wrapping indices; correction bolus component removed (was always additive, overriding negative ROC corrections).
+- The adjusted basal formula was completely rewritten with two independent components:
+  1. **Rate-of-change correction** — for each hour h (h = 1…22, non-wrapping to avoid midnight artefacts), the smoothed median rate of change is computed via central difference. The correction is split evenly across the two preceding hours (h−1 and h−2), shifting the basal shape to counteract glucose trends.
+  2. **Target glucose offset** — `(avg glucose − target glucose) / ISF` units distributed uniformly across all 24 hours, shifting the overall basal level toward the user-set target.
+- Previous formula bugs fixed: circular wrap-around artefact eliminated by using non-wrapping indices; correction bolus component removed (was always additive, overriding negative corrections); accumulator compounding bug fixed.
 
 **Target Glucose input**
-- A "Target Glucose" number input (default 6.0 mmol/L, range 3–12) added to the controls bar beside the Target Range selector. Used by the Adjusted Basal level-offset component.
+- A "Target Glucose" number input (default 6.0 mmol/L, range 3–12) added to the controls bar beside the Target Range selector. Drives the level-offset component of the Adjusted Basal calculation.
+
+**New chart: Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)**
+- Mirrors the Post-Prandial Interstitial Glucose Trace in structure, but for hypoglycaemia treatment events (0.05 U boluses used as carbohydrate rescue signals).
+- Displays individual faint orange traces, bold orange median line, IQR shaded band, and ±2 mmol/L dashed reference lines, normalised to pre-treatment interstitial glucose at time 0.
+- Hover tooltip with median, IQR, mean Δ, and event count at each 5-minute timepoint. Only shown when hypo treatment events are present in the selected period.
+
+**Statistics — previous period comparison**
+- All key statistics cards now show a small trend indicator comparing the current period to the immediately preceding period of equal length.
+- Trend is shown as `▲`/`▼` with the signed delta, colour-coded green for clinical improvement (e.g. TIR ↑, average glucose ↓, hypoglycaemia frequency ↓) and red for worsening. Hidden when insufficient data exists in the prior period.
+- Metrics compared: Average Glucose, TIR, TBR, TAR, GMI, %CV, TDI, Avg Carbs/day, bolus frequency, and hypoglycaemia treatment frequency.
 
 **Statistics**
-- **Avg Carbs / Day** card now shows a secondary line (`* Xg incl. hypo Tx`) with the average daily carbohydrate intake including hypoglycaemia treatment doses, when hypo treatments are present in the selected period.
+- **Avg Carbs / Day** card shows a secondary line (`* Xg incl. hypo Tx`) with the average daily carbohydrate intake including hypoglycaemia treatment carbohydrates, when hypo treatments are present.
+
+**Light theme**
+- A light/dark theme toggle switch is now available next to the logo in the header. The preference is persisted in `localStorage` across sessions.
+- The light theme uses an off-white background (`#f0f4f8`), white surfaces, dark text, and slightly deeper accent colours for contrast.
+- Canvas charts are redrawn immediately on toggle. In light mode, target range borders, ±2 mmol/L reference lines, and range fill opacities are all boosted to remain clearly visible against the lighter background (fully opaque solid colours at increased line weight vs translucent strokes in dark mode).
 
 **Bug fixes**
-- **Navigation arrows date drift** — pressing ◀ then ▶ (or vice versa) no longer shifts the date window by 1–2 days. Root cause: `fmtDateInput` used `toISOString()` which returns UTC, so in UTC+1/+2 timezones local midnight was formatted as the previous calendar day. Fixed to use local date components (`getFullYear()`, `getMonth()`, `getDate()`).
+- **Navigation arrows date drift** — pressing ◀ then ▶ (or vice versa) no longer shifts the date window by 1–2 days. Root cause: `fmtDateInput` used `toISOString()` (UTC), so in UTC+1/+2 timezones local midnight formatted as the previous calendar day. Fixed to use local date components.
+- **Post-hypo tooltip `canvas is not defined`** — `const canvas` declaration was accidentally dropped from the main `mousemove` handler when the hypo trace tooltip block was inserted. Restored.
+
+---
+
+### v0.26.2-beta2 (2026-03-22)
+
+Intermediate development release. Features introduced here were refined and bug-fixed in beta3 before release. See beta3 changelog for the final form of the rate-of-change chart, adjusted basal formula, and navigation arrow fix.
 
 ---
 
@@ -284,7 +308,6 @@ All AI-generated analysis — including pattern summaries, insulin dosing commen
   - *Correction boluses*: insulin-only boluses (excluding 0.05 U hypoglycaemia markers) are averaged per hour and distributed as `C(h) / 3` over the 3 preceding hours.
   - All rates are floored at 0. This is **not a clinical recommendation**.
 - Added a **basal info box** showing Avg Basal/day, Adjusted Basal/day, and the difference.
-- Removed the **Target BG** input (was only used by the previous adjusted basal formula).
 
 **Post-Meal Glucose Change by Hour of Day (new chart)**
 - Replaced the glucose-vs-prior-basal scatter plot with a chart showing Δ interstitial glucose at +3 h and +4 h after each meal bolus, grouped by the hour the bolus was taken.
