@@ -528,6 +528,34 @@
     pointer-events: auto;
     box-shadow: 0 0 0 2px rgba(0,212,177,0.3);
   }
+  #hypoTimingWindowStart::-webkit-slider-thumb,
+  #hypoTimingWindowEnd::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #f97316;
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 0 2px rgba(249,115,22,0.3);
+  }
+  #hypoTimingWindowStart::-moz-range-thumb,
+  #hypoTimingWindowEnd::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #f97316;
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 0 0 2px rgba(249,115,22,0.3);
+  }
+  #hypoTimingWindowStart,
+  #hypoTimingWindowEnd {
+    pointer-events: none;
+  }
   #mealWindowStart::-webkit-slider-runnable-track,
   #mealWindowEnd::-webkit-slider-runnable-track {
     background: transparent;
@@ -736,6 +764,7 @@
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:#3b82f6"></span>Mean</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:#f59e0b"></span>Avg Basal (U/h)</span>
         <span class="tod-leg-item"><span class="tod-leg-line" style="background:var(--teal);opacity:0.6;border-bottom:2px dashed var(--teal)"></span>Adjusted Basal</span>
+        <span class="tod-leg-item" id="todHypoLegend" style="display:none"><span class="tod-leg-line" style="background:#f97316;border-bottom:2px dashed #f97316"></span>Hypo Tx freq.</span>
       </div>
     </div>
     <div style="position:relative;display:block">
@@ -868,6 +897,36 @@
         Interstitial glucose traces are plotted for 4 hours following each meal bolus administered within the selected daily time window. The bold line represents the cohort median trace. Shaded band = interquartile range (25th–75th percentile). CGM readings are interpolated to a 5-minute grid. Pre-meal CGM reference is defined as the interstitial glucose at time 0 (bolus administration).
       </div>
 
+      <!-- Time since last bolus at hypo treatment -->
+      <div id="hypoTimingSection" style="display:none;margin-top:20px">
+        <div class="tod-header" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div class="tod-title" style="color:#f97316">Time Since Last Bolus at Hypoglycaemia Treatment</div>
+          <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="hypoTimingNLabel"></span>
+        </div>
+        <!-- Time-of-day slider (identical pattern to meal window) -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Time Window</span>
+          <div id="hypoTimingSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+            <div style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
+            <div id="hypoTimingSliderFill" style="position:absolute;top:50%;height:4px;background:#f97316;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+            <div id="hypoTimingSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+            <input type="range" id="hypoTimingWindowStart" min="0" max="24" step="0.25" value="0"
+              style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
+              oninput="onHypoTimingTODChange()">
+            <input type="range" id="hypoTimingWindowEnd" min="0" max="24" step="0.25" value="24"
+              style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:4"
+              oninput="onHypoTimingTODChange()">
+          </div>
+          <span id="hypoTimingWindowLabel" style="font-size:0.78rem;color:#f97316;font-family:'DM Mono',monospace;white-space:nowrap;min-width:110px;text-align:right">00:00 – 24:00</span>
+        </div>
+        <div style="position:relative;display:block">
+          <canvas id="hypoTimingCanvas" height="200" style="width:100%;display:block"></canvas>
+        </div>
+        <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.7">
+          Distribution of time elapsed since the preceding meal or correction bolus at the moment of each hypoglycaemia treatment event within the selected daily time window. <span style="color:#f97316">■</span> Orange bars: a prior bolus was identified (insulin on board from a meal or correction bolus — likely an ICR or ISF issue). <span style="color:var(--muted)">■</span> Grey bar: no prior bolus found (fasting or basal-only period — likely a basal rate issue). Hypo Tx events (0.05 U) are excluded from the prior bolus search.
+        </div>
+      </div>
+
       <!-- Post-hypo treatment glucose trace -->
       <div id="hypoTraceSection" style="display:none;margin-top:20px">
         <div class="tod-header" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -882,6 +941,7 @@
           Interstitial glucose traces are plotted for 4 hours following each hypoglycaemia treatment event (0.05 U bolus used as a carbohydrate rescue signal). The bold line represents the cohort median. Shaded band = interquartile range. Δ glucose is normalised to the interstitial glucose at time 0 (treatment administration). A value of 0 indicates no change from the pre-treatment level.
         </div>
       </div>
+
     </div>
 
   </div>
@@ -1036,12 +1096,14 @@
 <div class="bolus-tooltip" id="bolusTooltip"></div>
 <div class="bolus-tooltip" id="mealTraceTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="hypoTraceTooltip" style="max-width:230px;line-height:1.6"></div>
+<div class="bolus-tooltip" id="hypoTimingTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mainChartTooltip" style="max-width:260px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mealRespTooltip" style="max-width:230px;line-height:1.6"></div>
 
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
 let rawCGM = [], rawBasal = [], rawBolus = [];
+const CGM_GAP_MS = 5 * 60 * 1000; // readings more than 5 min apart = sensor gap
 let filteredCGM = [], filteredBasal = [], filteredBolus = [];
 let mainChart = null;
 let diaHours = 5;
@@ -1314,7 +1376,7 @@ function parseCGMRow(obj) {
     obj['cgm-glukosvärde (mg/dl)']    ||
     obj['cgm glukosvärde (mg/dl)'];
   const glc = parseNum(raw || 0);
-  if (!ts || isNaN(glc) || glc <= 0) return null;
+  if (!ts || isNaN(glc) || glc < 2.2) return null; // exclude sub-floor / sensor warmup readings
   return { ts, glc };
 }
 
@@ -1710,13 +1772,24 @@ function renderChart() {
     axis.ticks = aligned;
   }
 
-  // Build IOB series at CGM timestamps — use raw data so panning outside the
-  // selected date range still shows data. Stats continue to use filteredCGM/Basal/Bolus.
-  const iobData = rawCGM.map(r => ({
-    x: r.ts.getTime(),
-    y: parseFloat(calcIOB(r.ts, rawBolus, diaHours).toFixed(2))
-  }));
-  const cgmData = rawCGM.map(r => ({ x: r.ts.getTime(), y: r.glc }));
+  // Build CGM series with null breakpoints at gaps > one CGM interval.
+  const GAP_MS = CGM_GAP_MS;
+  const cgmData = [];
+  for (let i = 0; i < rawCGM.length; i++) {
+    if (i > 0 && rawCGM[i].ts.getTime() - rawCGM[i-1].ts.getTime() > GAP_MS) {
+      cgmData.push({ x: rawCGM[i-1].ts.getTime() + 1, y: null }); // break
+    }
+    cgmData.push({ x: rawCGM[i].ts.getTime(), y: rawCGM[i].glc });
+  }
+
+  // IOB is continuous (pharmacokinetic, not tied to CGM presence) — sample on
+  // a dense 5-min grid so the curve is smooth regardless of CGM gaps.
+  const iobStart = rawCGM.length ? rawCGM[0].ts.getTime() : 0;
+  const iobEnd   = rawCGM.length ? rawCGM[rawCGM.length - 1].ts.getTime() : 0;
+  const iobData  = [];
+  for (let t = iobStart; t <= iobEnd + 1; t += 5 * 60 * 1000) {
+    iobData.push({ x: t, y: parseFloat(calcIOB(new Date(t), rawBolus, diaHours).toFixed(2)) });
+  }
   const basalData = rawBasal.map(r => ({ x: r.ts.getTime(), y: r.rate }));
   const carbBolus = rawBolus.filter(b => b.carbs > 0).map(b => ({
     x: b.ts.getTime(), y: 0, carbs: b.carbs, insulin: b.insulin
@@ -1835,6 +1908,7 @@ function renderChart() {
           label: 'CGM (mmol/L)', data: cgmData, yAxisID: 'y-glc',
           borderColor: '#00d4b1', backgroundColor: 'transparent',
           borderWidth: 2, pointRadius: 0, pointHoverRadius: 0, tension: 0.3, order: 1,
+          spanGaps: false,
         },
         {
           label: 'Basal Rate (U/h)', data: basalData, yAxisID: 'y-basal',
@@ -1966,7 +2040,7 @@ function renderChart() {
     }
     const after  = rawCGM[lo];
     const before = rawCGM[lo - 1];
-    const GAP_LIMIT = 16 * 60000;
+    const GAP_LIMIT = CGM_GAP_MS;
     let glcInterp = null, glcTs = null;
     if (before && after) {
       const span = after.ts.getTime() - before.ts.getTime();
@@ -1980,9 +2054,9 @@ function renderChart() {
     } else if (after && after.ts.getTime() - ts <= GAP_LIMIT) {
       glcInterp = after.glc; glcTs = new Date(ts);
     }
-    if (glcInterp === null) {
-      mainTooltipEl.style.display = 'none'; return;
-    }
+    // During a CGM gap: still show tooltip with basal/IOB/bolus, just omit the CGM line
+    const inGap = glcInterp === null;
+    const tooltipTs = inGap ? new Date(ts) : glcTs;
 
     // Basal rate active at ts
     let basalRate = null;
@@ -1991,18 +2065,27 @@ function renderChart() {
     }
 
     // IOB at cursor timestamp
-    const iob = calcIOB(glcTs, rawBolus, diaHours);
+    const iob = calcIOB(tooltipTs, rawBolus, diaHours);
 
     // Boluses within ±8 min of cursor
     const BOLUS_WIN = 8 * 60000;
     const nearbyBoluses = rawBolus.filter(b => Math.abs(b.ts.getTime() - ts) <= BOLUS_WIN);
 
+    // Hide tooltip entirely only if there's nothing at all to show
+    if (inGap && basalRate === null && iob < 0.01 && nearbyBoluses.length === 0) {
+      mainTooltipEl.style.display = 'none'; return;
+    }
+
     // Build HTML
-    const glcColor = glcInterp < targetRange.low ? '#ef4444'
-                   : glcInterp > targetRange.high ? '#f59e0b' : '#00d4b1';
-    const timeStr = glcTs.toLocaleString('sv-SE').replace('T', ' ').slice(0, 16);
+    const timeStr = tooltipTs.toLocaleString('sv-SE').replace('T', ' ').slice(0, 16);
     let html = `<strong style="color:var(--teal)">${timeStr}</strong><br>`;
-    html += `<span style="color:${glcColor}">● CGM: ${glcInterp.toFixed(1)} mmol/L</span><br>`;
+    if (!inGap) {
+      const glcColor = glcInterp < targetRange.low ? '#ef4444'
+                     : glcInterp > targetRange.high ? '#f59e0b' : '#00d4b1';
+      html += `<span style="color:${glcColor}">● CGM: ${glcInterp.toFixed(1)} mmol/L</span><br>`;
+    } else {
+      html += `<span style="color:var(--muted);font-style:italic">CGM gap</span><br>`;
+    }
     if (basalRate !== null) html += `<span style="color:#f59e0b">▬ Basal: ${basalRate.toFixed(2)} U/h</span><br>`;
     html += `<span style="color:#a855f7">◑ IOB: ${iob.toFixed(2)} U</span>`;
 
@@ -2237,11 +2320,13 @@ function updateStats() {
   buildTOD(visCGM, visBasal, isfMmol, visBolus);
   buildMealTrace(visCGM, visBolus);
   buildHypoTrace(visCGM, visBolus);
+  buildHypoTiming(visBolus);
 }
 
 // ─── Post-Prandial Glucose Trace (0–4 h) ─────────────────────────────────────
 let mealTraceVisCGM  = [];
 let mealTraceVisBolus = [];
+let hypoTimingVisBolus = [];
 
 function onMealWindowChange() {
   const s = parseFloat(document.getElementById('mealWindowStart').value);
@@ -2510,6 +2595,88 @@ function buildMealTrace(visCGM, visBolus) {
   ctx.stroke();
   ctx.lineCap = 'butt';
 
+  // ── Hypo Tx timing overlay ───────────────────────────────────────────────────
+  // For each meal in the window, find subsequent hypo treatments and bin by
+  // elapsed time (30-min bins, 0–240 min matching the post-prandial x-axis).
+  // Drawn as orange bars at the bottom of the plot on a secondary right y-axis.
+  {
+    const isHypo = b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001;
+    const allHypos  = visBolus.filter(b => isHypo(b)).sort((a, b) => a.ts - b.ts);
+    const BIN_MIN   = 30;
+    const N_BINS    = 240 / BIN_MIN; // 8 bins × 30 min = 0–240 min
+    const hypoBins  = new Array(N_BINS).fill(0);
+
+    for (const meal of meals) {
+      const mealMs = meal.ts.getTime();
+      for (const hypo of allHypos) {
+        const elapsedMin = (hypo.ts.getTime() - mealMs) / 60000;
+        if (elapsedMin < 0) continue;
+        if (elapsedMin > 240) break;
+        hypoBins[Math.min(N_BINS - 1, Math.floor(elapsedMin / BIN_MIN))]++;
+      }
+    }
+
+    const maxHypo = Math.max(...hypoBins);
+    if (maxHypo > 0) {
+      // Scale bars into the bottom 20% of the plot area
+      const bandH  = plotH * 0.20;
+      const bandY0 = PAD.top + plotH;          // bottom of plot
+      const bandY1 = bandY0 - bandH;           // top of hypo band
+      const barW   = plotW / N_BINS;
+      const toYH   = v => bandY0 - (v / maxHypo) * bandH;
+
+      // Faint fill behind bars
+      ctx.save();
+      ctx.fillStyle = 'rgba(249,115,22,0.06)';
+      ctx.fillRect(PAD.left, bandY1, plotW, bandH);
+
+      // Bars
+      for (let i = 0; i < N_BINS; i++) {
+        if (hypoBins[i] === 0) continue;
+        const x  = toX(i * BIN_MIN);
+        const y  = toYH(hypoBins[i]);
+        const bh = bandY0 - y;
+        ctx.fillStyle   = 'rgba(249,115,22,0.55)';
+        ctx.strokeStyle = 'rgba(249,115,22,0.85)';
+        ctx.lineWidth   = 1;
+        ctx.beginPath(); ctx.rect(x + 1, y, barW - 2, bh);
+        ctx.fill(); ctx.stroke();
+      }
+
+      // Secondary y-axis ticks (right side, orange)
+      ctx.fillStyle = 'rgba(249,115,22,0.65)';
+      ctx.font      = '8px DM Mono, monospace';
+      ctx.textAlign = 'left';
+      for (let v = 0; v <= maxHypo; v++) {
+        const y = toYH(v);
+        if (y < bandY1 - 2) continue;
+        ctx.fillText(v, W - PAD.right + 4, y + 3);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(249,115,22,0.25)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+        ctx.setLineDash([]); ctx.restore();
+      }
+
+      // Axis label
+      ctx.save();
+      ctx.translate(W - 6, bandY1 + bandH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(249,115,22,0.65)';
+      ctx.font = '8px DM Mono, monospace';
+      ctx.fillText('Hypo Tx', 0, 0);
+      ctx.restore();
+      ctx.restore();
+
+      // Store bins for tooltip
+      canvas._hypoTimingBins = { hypoBins, maxHypo, BIN_MIN, N_BINS, bandY0, bandY1, barW };
+    } else {
+      canvas._hypoTimingBins = null;
+    }
+  }
+
   // Legend
   ctx.fillStyle = 'rgba(0,212,177,0.7)';
   ctx.font = '9px DM Mono, monospace';
@@ -2519,6 +2686,15 @@ function buildMealTrace(visCGM, visBolus) {
   ctx.fillRect(PAD.left + 50, PAD.top + 6, 14, 8);
   ctx.fillStyle = 'rgba(100,116,139,0.7)';
   ctx.fillText('IQR', PAD.left + 66, PAD.top + 14);
+  // Hypo Tx legend entry
+  if (canvas._hypoTimingBins) {
+    ctx.fillStyle = 'rgba(249,115,22,0.55)';
+    ctx.fillRect(PAD.left + 90, PAD.top + 6, 12, 8);
+    ctx.strokeStyle = 'rgba(249,115,22,0.85)'; ctx.lineWidth = 1;
+    ctx.strokeRect(PAD.left + 90, PAD.top + 6, 12, 8);
+    ctx.fillStyle = 'rgba(249,115,22,0.8)';
+    ctx.fillText('Hypo Tx', PAD.left + 105, PAD.top + 14);
+  }
 
   // Store geometry + per-timepoint data for tooltip
   // Also compute per-timepoint n and mean of individual traces
@@ -2531,6 +2707,7 @@ function buildMealTrace(visCGM, visBolus) {
   }
   canvas._mealTrace = { PAD, plotW, plotH, toX, toY, STEP, STEPS,
     colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
+
 }
 
 // ─── Post-Hypo Treatment Glucose Trace (0–4 h) ───────────────────────────────
@@ -2749,6 +2926,215 @@ function buildHypoTrace(visCGM, visBolus) {
 
   canvas._hypoTrace = { PAD, plotW, plotH, toX, toY, STEP, STEPS,
     colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
+}
+
+// ─── Time Since Last Bolus at Hypo Treatment ─────────────────────────────────
+function onHypoTimingTODChange() {
+  const s = parseFloat(document.getElementById('hypoTimingWindowStart').value);
+  const e = parseFloat(document.getElementById('hypoTimingWindowEnd').value);
+  let lo = Math.min(s, e), hi = Math.max(s, e);
+  if (hi - lo < 0.5) {
+    if (s <= e) hi = lo + 0.5; else lo = hi - 0.5;
+    document.getElementById('hypoTimingWindowStart').value = lo;
+    document.getElementById('hypoTimingWindowEnd').value   = hi;
+  }
+  // Update fill + pan bar (thumb-corrected, matching meal window pattern)
+  const fill = document.getElementById('hypoTimingSliderFill');
+  const pan  = document.getElementById('hypoTimingSliderPan');
+  const wrap = document.getElementById('hypoTimingSliderWrap');
+  if (fill && wrap) {
+    const thumbR  = 8;
+    const trackW  = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
+    const scale   = (trackW - 2 * thumbR) / trackW;
+    const offset  = thumbR / trackW * 100;
+    const leftPct  = offset + (lo / 24) * scale * 100;
+    const widthPct = ((hi - lo) / 24) * scale * 100;
+    fill.style.left  = leftPct + '%';
+    fill.style.width = widthPct + '%';
+    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
+  }
+  const fmt = v => {
+    const h = Math.floor(v), m = Math.round((v - h) * 60);
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  };
+  document.getElementById('hypoTimingWindowLabel').textContent =
+    fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
+  if (hypoTimingVisBolus.length) buildHypoTiming(hypoTimingVisBolus);
+}
+
+function buildHypoTiming(visBolus) {
+  hypoTimingVisBolus = visBolus;
+  const section = document.getElementById('hypoTimingSection');
+  const canvas  = document.getElementById('hypoTimingCanvas');
+  if (!canvas || !section) return;
+
+  // X axis derived from DIA — bins cover 0→DIA, then one "DIA+h" bin, then grey no-bolus bar
+  const diaH     = parseFloat(document.getElementById('diaSelect')?.value) || 5;
+  const BIN_MINS = 30;
+  const N_TIMED  = Math.round(diaH * 60 / BIN_MINS);
+  const CUTOFF_MS = diaH * 3600000;
+
+  // Time-of-day filter
+  const startH = parseFloat(document.getElementById('hypoTimingWindowStart')?.value ?? 0);
+  const endH   = parseFloat(document.getElementById('hypoTimingWindowEnd')?.value ?? 24);
+  const winLo  = Math.min(startH, endH);
+  const winHi  = Math.max(startH, endH);
+
+  const isHypo = b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001;
+  const hypos  = visBolus.filter(b => {
+    if (!isHypo(b)) return false;
+    const h = b.ts.getHours() + b.ts.getMinutes() / 60;
+    return h >= winLo && h < winHi;
+  }).sort((a, b) => a.ts - b.ts);
+  const boluses = visBolus.filter(b => !isHypo(b)).sort((a, b) => a.ts - b.ts);
+
+  if (hypos.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  document.getElementById('hypoTimingNLabel').textContent =
+    `${hypos.length} event${hypos.length !== 1 ? 's' : ''} in window`;
+
+  const timedBins  = new Array(N_TIMED).fill(0); // 0–5 h in 30-min slots
+  let   longCount  = 0;   // > 5 h prior bolus
+  let   noBolusCount = 0; // no prior bolus found at all (search up to 24 h back)
+
+  for (const hypo of hypos) {
+    const hypoMs = hypo.ts.getTime();
+    let best = null;
+    // Search backwards up to 24 h for most recent non-hypo bolus
+    for (let i = boluses.length - 1; i >= 0; i--) {
+      const bMs = boluses[i].ts.getTime();
+      if (bMs >= hypoMs) continue;
+      if (bMs < hypoMs - 24 * 3600000) break;
+      best = bMs;
+      break;
+    }
+    if (best === null) {
+      noBolusCount++;
+    } else {
+      const elapsedMs = hypoMs - best;
+      if (elapsedMs > CUTOFF_MS) {
+        longCount++;
+      } else {
+        const bin = Math.min(N_TIMED - 1, Math.floor(elapsedMs / 60000 / BIN_MINS));
+        timedBins[bin]++;
+      }
+    }
+  }
+
+  // ── Canvas setup ─────────────────────────────────────────────────────────────
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
+  const cssH = 200;
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = cssW, H = cssH;
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = { top: 16, right: 20, bottom: 38, left: 44 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  // Total bars: N_TIMED timed bins + 1 "5+ h" bin + 1 "no bolus" bar
+  const totalBars = N_TIMED + 2;
+  const barW = plotW / totalBars;
+  const maxCount = Math.max(1, ...timedBins, longCount, noBolusCount);
+  const toY = v => PAD.top + plotH - (v / maxCount) * plotH;
+  const toX = i => PAD.left + i * barW;
+
+  // Grid lines + Y labels
+  ctx.setLineDash([3, 3]);
+  ctx.font = '10px DM Mono, monospace';
+  ctx.textAlign = 'right';
+  const yStep = maxCount <= 4 ? 1 : maxCount <= 10 ? 2 : Math.ceil(maxCount / 5);
+  for (let v = 0; v <= maxCount; v += yStep) {
+    const y = toY(v);
+    ctx.strokeStyle = 'rgba(31,45,69,0.8)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,116,139,0.7)';
+    ctx.fillText(v, PAD.left - 4, y + 3.5);
+  }
+  ctx.setLineDash([]);
+
+  // Draw helper
+  const drawBar = (i, count, fill, stroke) => {
+    if (count === 0) return;
+    const x = toX(i), y = toY(count), bh = PAD.top + plotH - y;
+    ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.rect(x + 1, y, barW - 2, bh); ctx.fill(); ctx.stroke();
+  };
+
+  // Orange timed bins: 0–2h darker (active bolus territory), 2h–DIA lighter (tail/ISF territory)
+  const earlyBins = Math.round(2 * 60 / BIN_MINS);
+  for (let i = 0; i < N_TIMED; i++) {
+    const isEarly = i < earlyBins;
+    drawBar(i, timedBins[i],
+      isEarly ? 'rgba(249,115,22,0.55)' : 'rgba(249,115,22,0.30)',
+      isEarly ? 'rgba(249,115,22,0.9)'  : 'rgba(249,115,22,0.6)');
+  }
+
+  // Amber "DIA+h" bin — prior bolus found but beyond DIA, likely basal territory
+  drawBar(N_TIMED, longCount, 'rgba(245,158,11,0.4)', 'rgba(245,158,11,0.8)');
+
+  // Separator before no-bolus bar
+  ctx.save();
+  ctx.strokeStyle = 'rgba(100,116,139,0.2)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  const sepX = toX(N_TIMED + 1) + 1;
+  ctx.beginPath(); ctx.moveTo(sepX, PAD.top); ctx.lineTo(sepX, PAD.top + plotH); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+
+  // Grey "no prior bolus" bar
+  drawBar(N_TIMED + 1, noBolusCount, 'rgba(100,116,139,0.35)', 'rgba(100,116,139,0.7)');
+
+  // X axis: label every hour
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace'; ctx.textAlign = 'center';
+  const labelEvery = Math.max(1, Math.round(60 / BIN_MINS));
+  for (let i = 0; i <= N_TIMED; i += labelEvery) {
+    const x = toX(i) + barW / 2;
+    ctx.fillText(`${Math.round(i * BIN_MINS / 60)}h`, x, H - PAD.bottom + 12);
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.bottom); ctx.lineTo(x, H - PAD.bottom + 4); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(245,158,11,0.8)';
+  ctx.fillText(`${diaH}h+`, toX(N_TIMED) + barW / 2, H - PAD.bottom + 12);
+  ctx.fillStyle = 'rgba(100,116,139,0.6)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('no bolus', toX(N_TIMED + 1) + barW / 2, H - PAD.bottom + 12);
+
+  // DIA marker line + label
+  ctx.save();
+  ctx.strokeStyle = 'rgba(245,158,11,0.4)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  const diaX = toX(N_TIMED);
+  ctx.beginPath(); ctx.moveTo(diaX, PAD.top); ctx.lineTo(diaX, PAD.top + plotH); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(245,158,11,0.6)'; ctx.font = '8px DM Mono, monospace'; ctx.textAlign = 'left';
+  ctx.fillText(`DIA (${diaH}h)`, diaX + 3, PAD.top + 10);
+  ctx.restore();
+
+  // X axis title
+  ctx.fillStyle = 'rgba(249,115,22,0.6)';
+  ctx.font = '9px DM Mono, monospace'; ctx.textAlign = 'center';
+  ctx.fillText('Time since last bolus', PAD.left + plotW * ((N_TIMED + 0.5) / totalBars), H - 4);
+
+  // Y axis label
+  ctx.save();
+  ctx.translate(11, PAD.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Events', 0, 0);
+  ctx.restore();
+
+  // Store for tooltip
+  canvas._hypoTiming = { PAD, plotW, plotH, barW, toX, toY,
+    timedBins, longCount, noBolusCount, N_TIMED, BIN_MINS, maxCount, diaH };
 }
 
 function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
@@ -3130,13 +3516,30 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
 
     // ── Adjusted Basal curve ───────────────────────────────────────────────────
     if (isfMmol && isfMmol > 0) {
-      // ROC component: for each hour h (h=1..22, non-wrapping), compute smoothed
-      // median ROC via central difference and distribute roc/ISF over h-1 and h-2.
-      const adjCorr = new Array(24).fill(0);
+      // ROC component: central difference of rawMedian, then Gaussian-smooth —
+      // same source as the Rate-of-Change chart median line.
+      const rawRocFromMedian = rawMedian.map((_, h) => {
+        const prev = rawMedian[(h - 1 + 24) % 24];
+        const next = rawMedian[(h + 1) % 24];
+        if (prev === null || next === null) return null;
+        return (next - prev) / 2; // mmol/L/h
+      });
+      const smRocMed = rawRocFromMedian.map((_, h) => {
+        if (rawRocFromMedian[h] === null) return null;
+        let sumW = 0, sumV = 0;
+        for (let dh = -4; dh <= 4; dh++) {
+          const ih = ((h + dh) % 24 + 24) % 24;
+          if (rawRocFromMedian[ih] === null) continue;
+          const w = Math.exp(-(dh * dh) / (2 * 1.5 * 1.5));
+          sumW += w; sumV += w * rawRocFromMedian[ih];
+        }
+        return sumW > 0 ? sumV / sumW : null;
+      });
 
+      const adjCorr = new Array(24).fill(0);
       for (let h = 1; h <= 22; h++) {
-        if (smMedian[h - 1] == null || smMedian[h + 1] == null) continue;
-        const roc = (smMedian[h + 1] - smMedian[h - 1]) / 2; // mmol/L/h
+        if (smRocMed[h] == null) continue;
+        const roc = smRocMed[h]; // already in mmol/L/h
         const half = roc / isfMmol / 2;
         adjCorr[h - 1] += half;
         adjCorr[h - 2 >= 0 ? h - 2 : 0] += half;
@@ -3206,7 +3609,76 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
     canvas._todBasal = null;
   }
 
-  // ── X axis ──────────────────────────────────────────────────────────────────
+  // ── Hypo treatment frequency overlay ────────────────────────────────────────
+  // Compute avg hypo treatments per day per hour, smooth, and draw as a dashed
+  // orange curve scaled to the bottom 20% of the glucose plot area.
+  {
+    const vMinH = viewMin ?? rawCGM[0].ts.getTime();
+    const vMaxH = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
+    const spanDays = Math.max((vMaxH - vMinH) / 86400000, 1 / 24);
+    const visBolusH = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMinH && t <= vMaxH; });
+    const hypoByHour = new Array(24).fill(0);
+    visBolusH.forEach(b => {
+      if (b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001)
+        hypoByHour[b.ts.getHours()]++;
+    });
+    const hypoPerDay = hypoByHour.map(n => n / spanDays);
+    const maxHypo = Math.max(...hypoPerDay);
+
+    if (maxHypo > 0) {
+      // Gaussian smooth (circular wrap — hypo patterns can span midnight)
+      const smHypo = hypoPerDay.map((_, h) => {
+        let sumW = 0, sumV = 0;
+        for (let dh = -3; dh <= 3; dh++) {
+          const ih = ((h + dh) % 24 + 24) % 24;
+          const w = Math.exp(-(dh * dh) / (2 * 1.5 * 1.5));
+          sumW += w; sumV += w * hypoPerDay[ih];
+        }
+        return sumV / sumW;
+      });
+      smHypo[24] = smHypo[23];
+
+      // Scale: 0..maxHypo mapped into the bottom 20% of the plot height
+      const hypoYBottom = PAD.top + plotH;
+      const hypoYTop    = hypoYBottom - plotH * 0.20;
+      const toYHypo = v => hypoYBottom - (v / maxHypo) * (hypoYBottom - hypoYTop);
+
+      // Faint fill under curve
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(toX(0), hypoYBottom);
+      for (let h = 0; h <= 24; h++) ctx.lineTo(toX(h), toYHypo(smHypo[h] ?? 0));
+      ctx.lineTo(toX(24), hypoYBottom);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(249,115,22,0.08)';
+      ctx.fill();
+
+      // Dashed orange curve
+      ctx.beginPath();
+      ctx.setLineDash([5, 3]);
+      ctx.moveTo(toX(0), toYHypo(smHypo[0] ?? 0));
+      for (let h = 1; h <= 24; h++) {
+        const cpx = toX(h - 0.5);
+        ctx.bezierCurveTo(cpx, toYHypo(smHypo[h-1] ?? 0), cpx, toYHypo(smHypo[h] ?? 0), toX(h), toYHypo(smHypo[h] ?? 0));
+      }
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(249,115,22,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+
+      canvas._todHypo = { smHypo, maxHypo, toYHypo, spanDays };
+      const leg = document.getElementById('todHypoLegend');
+      if (leg) leg.style.display = '';
+    } else {
+      canvas._todHypo = null;
+      const leg = document.getElementById('todHypoLegend');
+      if (leg) leg.style.display = 'none';
+    }
+  }
+
+  // ── X axis ──────────────────────────────────────────────────────────────
   ctx.fillStyle = 'rgba(100,116,139,0.7)';
   ctx.font = `10px DM Mono, monospace`;
   ctx.textAlign = 'center';
@@ -3230,33 +3702,34 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   const vMin2 = viewMin ?? rawCGM[0].ts.getTime();
   const vMax2 = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
   const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin2 && t <= vMax2; });
-  buildTODDeriv(hourlyData, smMedian, smMean);
+  buildTODDeriv(hourlyData, smMedian, smMean, rawMedian);
   buildBolusHOD(visBolus2, vMin2, vMax2);
   buildMealResponse(visCGM, visBolus2);
   buildMealTrace(visCGM, visBolus2);
   buildHypoTrace(visCGM, visBolus2);
+  buildHypoTiming(visBolus2);
 }
 
 // ─── Glucose Rate of Change by Hour of Day ───────────────────────────────────
-function buildTODDeriv(hourlyData, smMedian, smMean) {
+function buildTODDeriv(hourlyData, smMedian, smMean, rawMedian) {
   const section = document.getElementById('todDerivSection');
   const canvas  = document.getElementById('todDerivCanvas');
   if (!canvas || !section) return;
 
-  // Compute per-reading rate of change for each CGM point then bin by hour.
-  // Rate = (glc[i+1] - glc[i-1]) / (2 * dt_hours)  (central difference, mmol/L/h)
-  // We bin the individual reading-level derivatives by hour for percentile stats,
-  // then also compute smoothed hourly median and mean derivatives.
-  const derivByHour = Array.from({length: 24}, () => []);
+  // Pipeline: take the raw (unsmoothed) hourly glucose median, compute central-
+  // difference rate of change between adjacent hours, then Gaussian-smooth the
+  // resulting ROC curve.  This is cleaner than averaging per-reading derivatives
+  // because it differentiates the hour-level signal rather than noisy readings.
+  //
+  // For the IQR band we still use per-reading derivatives binned by hour, which
+  // gives a realistic spread of instantaneous rates across the population.
 
-  // Use raw visible CGM readings (already in hourlyData buckets by hour).
-  // For each CGM reading we need its neighbours — easier to work over the
-  // globally-sorted rawCGM but filtered to the visible window.
+  // ── Per-reading derivatives for IQR band ────────────────────────────────────
+  const derivByHour = Array.from({length: 24}, () => []);
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
   const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
   const visCGM = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
-
-  const MAX_GAP_MS = 16 * 60000; // 16 min — skip derivative across sensor gaps
+  const MAX_GAP_MS = CGM_GAP_MS;
   for (let i = 1; i < visCGM.length - 1; i++) {
     const prev = visCGM[i - 1], curr = visCGM[i], next = visCGM[i + 1];
     const dtPrev = curr.ts.getTime() - prev.ts.getTime();
@@ -3264,15 +3737,13 @@ function buildTODDeriv(hourlyData, smMedian, smMean) {
     if (dtPrev > MAX_GAP_MS || dtNext > MAX_GAP_MS) continue;
     const dtH = (dtPrev + dtNext) / 2 / 3600000;
     if (dtH <= 0) continue;
-    const roc = (next.glc - prev.glc) / (2 * dtH); // mmol/L/h
-    derivByHour[curr.ts.getHours()].push(roc);
+    derivByHour[curr.ts.getHours()].push((next.glc - prev.glc) / (2 * dtH));
   }
 
   const hasData = derivByHour.some(a => a.length >= 3);
   section.style.display = hasData ? 'block' : 'none';
   if (!hasData) return;
 
-  // Per-hour percentile stats
   function pctile(sorted, p) {
     if (!sorted.length) return null;
     const idx = (p / 100) * (sorted.length - 1);
@@ -3287,7 +3758,6 @@ function buildTODDeriv(hourlyData, smMedian, smMean) {
              mean: vals.reduce((a, b) => a + b, 0) / vals.length };
   });
 
-  // Smooth with same Gaussian used for glucose TOD
   function smoothed(values, sigma = 1.5) {
     return values.map((_, h) => {
       if (values[h] === null) return null;
@@ -3302,19 +3772,34 @@ function buildTODDeriv(hourlyData, smMedian, smMean) {
     });
   }
 
-  const rawMed  = rawDerivStats.map(s => s ? s.median : null);
-  const rawMean = rawDerivStats.map(s => s ? s.mean   : null);
-  const rawP5   = rawDerivStats.map(s => s ? s.p5     : null);
-  const rawP95  = rawDerivStats.map(s => s ? s.p95    : null);
-  const rawP25  = rawDerivStats.map(s => s ? s.p25    : null);
-  const rawP75  = rawDerivStats.map(s => s ? s.p75    : null);
+  // ── Median ROC: central diff of rawMedian → Gaussian smooth ─────────────────
+  // roc[h] = (rawMedian[h+1] − rawMedian[h−1]) / 2  (circular wrap, mmol/L/h)
+  const rawRocFromMedian = rawMedian.map((_, h) => {
+    const prev = rawMedian[(h - 1 + 24) % 24];
+    const next = rawMedian[(h + 1) % 24];
+    if (prev === null || next === null) return null;
+    return (next - prev) / 2;
+  });
+  const smDMed = smoothed(rawRocFromMedian);
 
-  const smDMed  = smoothed(rawMed);
-  const smDMean = smoothed(rawMean);
-  const smDP5   = smoothed(rawP5);
-  const smDP95  = smoothed(rawP95);
-  const smDP25  = smoothed(rawP25);
-  const smDP75  = smoothed(rawP75);
+  // Mean ROC: same approach on smMean
+  const rawRocFromMean = smMean.map((_, h) => {
+    const prev = smMean[(h - 1 + 24) % 24];
+    const next = smMean[(h + 1) % 24];
+    if (prev === null || next === null) return null;
+    return (next - prev) / 2;
+  });
+  const smDMean = smoothed(rawRocFromMean);
+
+  // IQR band from per-reading derivatives
+  const rawP25 = rawDerivStats.map(s => s ? s.p25 : null);
+  const rawP75 = rawDerivStats.map(s => s ? s.p75 : null);
+  const rawP5  = rawDerivStats.map(s => s ? s.p5  : null);
+  const rawP95 = rawDerivStats.map(s => s ? s.p95 : null);
+  const smDP25 = smoothed(rawP25);
+  const smDP75 = smoothed(rawP75);
+  const smDP5  = smoothed(rawP5);
+  const smDP95 = smoothed(rawP95);
 
   // Extend to index 24
   [smDMed, smDMean, smDP5, smDP95, smDP25, smDP75].forEach(a => { a[24] = a[23]; });
@@ -4616,11 +5101,14 @@ document.addEventListener('mousemove', (e) => {
             mtTip.style.left    = lft + 'px';
             mtTip.style.top     = (e.clientY - 10) + 'px';
             mtTip.style.display = 'block';
+            const hypoB = mtCanvas._hypoTimingBins;
+            const hypoBin = hypoB ? (() => { const bi = Math.floor(tMin / hypoB.BIN_MIN); return bi < hypoB.N_BINS ? hypoB.hypoBins[bi] : 0; })() : 0;
+            const hypoLine = hypoB && hypoBin > 0 ? `<br><span style="color:#f97316">Hypo Tx: ${hypoBin} in this 30-min slot</span>` : '';
             mtTip.innerHTML = `<strong>+${tMin} min post-bolus</strong><br>
               <span style="color:var(--teal)">Median: ${fmt(colMedian[idx])} mmol/L</span><br>
               <span style="color:rgba(0,212,177,0.65)">IQR: ${fmt(colP25[idx])} – ${fmt(colP75[idx])} mmol/L</span><br>
               <span style="color:#3b82f6">Mean: ${fmt(colMean[idx])} mmol/L</span><br>
-              <span style="color:var(--muted)">n = ${n} meal${n !== 1 ? 's' : ''}</span>`;
+              <span style="color:var(--muted)">n = ${n} meal${n !== 1 ? 's' : ''}</span>${hypoLine}`;
           } else {
             mtTip.style.display = 'none';
             const ov = document.getElementById('mealTraceOverlay');
@@ -4702,9 +5190,55 @@ document.addEventListener('mousemove', (e) => {
       }
     }
   }
+
+  // ── Hypo timing histogram tooltip ────────────────────────────────────────────
+  {
+    const timingCanvas = document.getElementById('hypoTimingCanvas');
+    const timingTip    = document.getElementById('hypoTimingTooltip');
+    if (timingCanvas && timingCanvas._hypoTiming && timingTip) {
+      const tRect = timingCanvas.getBoundingClientRect();
+      if (e.clientX >= tRect.left && e.clientX <= tRect.right &&
+          e.clientY >= tRect.top  && e.clientY <= tRect.bottom) {
+        const { PAD: tPAD, barW, timedBins, longCount, noBolusCount, N_TIMED, BIN_MINS } = timingCanvas._hypoTiming;
+        const xRel = e.clientX - tRect.left - tPAD.left;
+        const barIdx = Math.floor(xRel / barW);
+        const total = timedBins.reduce((s, v) => s + v, 0) + longCount + noBolusCount;
+        if (barIdx >= 0 && barIdx <= N_TIMED + 1 && total > 0) {
+          const isNoBolus = barIdx === N_TIMED + 1;
+          const isLong    = barIdx === N_TIMED;
+          const count = isNoBolus ? noBolusCount : isLong ? longCount : timedBins[barIdx];
+          const pct = (count / total * 100).toFixed(0);
+          timingTip.style.display = 'block';
+          const tipW = 220;
+          const lft = e.clientX + 14 + tipW > window.innerWidth ? e.clientX - tipW - 8 : e.clientX + 14;
+          timingTip.style.left = lft + 'px';
+          timingTip.style.top  = (e.clientY - 10) + 'px';
+          if (isNoBolus) {
+            timingTip.innerHTML = `<strong style="color:var(--muted)">No prior bolus found</strong><br>
+              No bolus detected in the 24 h before treatment<br>
+              <span style="color:var(--muted)">${count} event${count !== 1 ? 's' : ''} (${pct}%)</span><br>
+              <span style="color:var(--muted);font-style:italic">Likely basal rate issue</span>`;
+          } else if (isLong) {
+            timingTip.innerHTML = `<strong style="color:rgba(245,158,11,0.9)">Prior bolus &gt; 5 h ago</strong><br>
+              <span style="color:rgba(245,158,11,0.8)">${count} event${count !== 1 ? 's' : ''} (${pct}%)</span><br>
+              <span style="color:var(--muted);font-style:italic">Bolus likely cleared — consider basal</span>`;
+          } else {
+            const startH = (barIdx * BIN_MINS / 60).toFixed(1);
+            const endH   = ((barIdx + 1) * BIN_MINS / 60).toFixed(1);
+            timingTip.innerHTML = `<strong style="color:#f97316">${startH} – ${endH} h before treatment</strong><br>
+              <span style="color:#f97316">${count} event${count !== 1 ? 's' : ''} (${pct}%)</span><br>
+              <span style="color:var(--muted);font-style:italic">Prior bolus active — possible ICR/ISF issue</span>`;
+          }
+        } else {
+          timingTip.style.display = 'none';
+        }
+      } else {
+        timingTip.style.display = 'none';
+      }
+    }
+  }
   const canvas = document.getElementById('todCanvas');
   const overlay = document.getElementById('todOverlay');
-  if (!canvas || !canvas._todGeom) return;
   const tooltip = document.getElementById('bolusTooltip');
   const rect = canvas.getBoundingClientRect();
 
@@ -4766,11 +5300,14 @@ document.addEventListener('mousemove', (e) => {
   const derivCanvas = document.getElementById('todDerivCanvas');
   const rocVal = derivCanvas?._todDeriv?.smDMed?.[h];
   const rocLine = rocVal != null ? `<br><span style="color:#a855f7">Rate of change: ${rocVal >= 0 ? '+' : ''}${rocVal.toFixed(2)} mmol/L/h</span>` : '';
+  const hypoFreq = canvas._todHypo?.smHypo?.[h];
+  const hypoLine = hypoFreq != null && hypoFreq > 0.001
+    ? `<br><span style="color:#f97316">Hypo Tx: ${hypoFreq.toFixed(2)}/day</span>` : '';
   tooltip.innerHTML = `<strong>${String(h).padStart(2,'0')}:00 – ${endLabel}</strong>
     Median: ${med.toFixed(1)} mmol/L${rawMedVal != null ? ' <span style="opacity:0.55">(raw ' + rawMedVal.toFixed(1) + ')</span>' : ''}<br>
     <span style="color:#3b82f6">Mean: ${avg2 != null ? avg2.toFixed(1) : '—'} mmol/L</span><br>
     25–75th %ile: ${p25.toFixed(1)} – ${p75.toFixed(1)}<br>
-    5–95th %ile: ${p5.toFixed(1)} – ${p95.toFixed(1)}${basalLine}${sugLine}${rocLine}<br>
+    5–95th %ile: ${p5.toFixed(1)} – ${p95.toFixed(1)}${basalLine}${sugLine}${rocLine}${hypoLine}<br>
     <span style="color:var(--muted)">${nStr.slice(3)}</span>`;
 });
 
@@ -4882,6 +5419,8 @@ document.addEventListener('mouseleave', () => {
   if (htOv) htOv.getContext('2d').clearRect(0, 0, htOv.width, htOv.height);
   const htTip = document.getElementById('hypoTraceTooltip');
   if (htTip) htTip.style.display = 'none';
+  const timingTip = document.getElementById('hypoTimingTooltip');
+  if (timingTip) timingTip.style.display = 'none';
 });
 
 // Redraw TOD on resize
@@ -4893,6 +5432,7 @@ window.addEventListener('resize', () => {
       buildTOD();
       if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus);
       if (mealTraceVisCGM.length) buildHypoTrace(mealTraceVisCGM, mealTraceVisBolus);
+      if (mealTraceVisCGM.length) buildHypoTiming(mealTraceVisBolus);
     }
   }, 120);
 });
@@ -5008,6 +5548,56 @@ window.addEventListener('load', () => {
   document.addEventListener('touchmove', (e) => { if (panActive) panMove(e.touches[0].clientX); }, { passive: true });
   document.addEventListener('mouseup',  panEnd);
   document.addEventListener('touchend', panEnd);
+});
+
+// ─── Hypo Timing TOD slider (dual-handle, same pattern as meal window) ────────
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap   = document.getElementById('hypoTimingSliderWrap');
+  const inpS   = document.getElementById('hypoTimingWindowStart');
+  const inpE   = document.getElementById('hypoTimingWindowEnd');
+  const panBar = document.getElementById('hypoTimingSliderPan');
+  if (!wrap || !inpS || !inpE || !panBar) return;
+
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.target === panBar) return;
+    const rect  = wrap.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const clickVal = ratio * 24;
+    const s = parseFloat(inpS.value), en = parseFloat(inpE.value);
+    const useStart = Math.abs(clickVal - s) <= Math.abs(clickVal - en);
+    const target = useStart ? inpS : inpE;
+    const other  = useStart ? inpE : inpS;
+    target.style.zIndex = '5'; other.style.zIndex = '3';
+    target.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
+  });
+
+  document.addEventListener('mouseup', () => {
+    inpS.style.pointerEvents = 'none'; inpE.style.pointerEvents = 'none';
+  });
+
+  let panActive = false, panStartX = 0, panStartS = 0, panStartE = 0;
+  function panStart(clientX) {
+    panActive = true; panStartX = clientX;
+    panStartS = parseFloat(inpS.value); panStartE = parseFloat(inpE.value);
+    panBar.style.cursor = 'grabbing';
+  }
+  function panMove(clientX) {
+    if (!panActive) return;
+    const rect = wrap.getBoundingClientRect();
+    const deltaVal = ((clientX - panStartX) / rect.width) * 24;
+    const width = panStartE - panStartS;
+    let newS = panStartS + deltaVal, newE = panStartE + deltaVal;
+    if (newS < 0) { newS = 0; newE = width; }
+    if (newE > 24) { newE = 24; newS = 24 - width; }
+    inpS.value = Math.round(newS * 4) / 4;
+    inpE.value = Math.round(newE * 4) / 4;
+    onHypoTimingTODChange();
+  }
+  function panEnd() { panActive = false; panBar.style.cursor = 'grab'; }
+
+  panBar.addEventListener('mousedown', (e) => { e.stopPropagation(); panStart(e.clientX); });
+  document.addEventListener('mousemove', (e) => { if (panActive) panMove(e.clientX); });
+  document.addEventListener('mouseup', panEnd);
 });
 
 // ─── Theme ────────────────────────────────────────────────────────────────────

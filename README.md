@@ -5,7 +5,7 @@ Chat with your data and extract insights!
 
 Should work for most pumps but currently tailored for Tandem (see section [Hypo Treatment Detection](#hypo-treatment-detection)).
 
-![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta3-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
+![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta4-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
 ---
 
@@ -18,12 +18,13 @@ Should work for most pumps but currently tailored for Tandem (see section [Hypo 
   - 🔵 **Meal bolus** — blue flag showing grams of carbohydrate and units delivered
   - 🔴 **Correction bolus** — red flag showing units delivered
   - 🟠 **Hypoglycaemia treatment** — orange flag (boluses of exactly 0.05 U), labelled with the configured carbohydrate amount
-- **Glucose by Hour of Day** — percentile bands (5–95th, 25–75th), smoothed median, raw (unsmoothed) median, and mean glucose curves. Average basal rate and an **Adjusted Basal** suggestion are overlaid on a right-hand axis. A basal info box shows Avg Basal/day, Adjusted Basal/day, and the difference. Hover to highlight the hour slot and see a detailed tooltip. Curves extend to 00:00 for a complete 24-hour view.
+- **Glucose by Hour of Day** — percentile bands (5–95th, 25–75th), smoothed median, raw (unsmoothed) median, and mean glucose curves. Average basal rate and an **Adjusted Basal** suggestion are overlaid on a right-hand axis. A dashed orange curve in the bottom of the plot shows Gaussian-smoothed hypoglycaemia treatment frequency (avg/day per hour). A basal info box shows Avg Basal/day, Adjusted Basal/day, and the difference. Hover to highlight the hour slot and see a detailed tooltip.
 - **Glucose Rate of Change by Hour of Day** — a compact chart directly below the glucose/basal plot showing the per-hour distribution of glucose rate of change (mmol/L/h), computed via central differencing. Displays IQR band, smoothed median, and mean. Hover on either plot highlights the same hour in both simultaneously.
 - **Insulin, Carbs & Hypoglycaemia Treatments by Hour of Day** — side-by-side bar chart showing average grams of carbohydrate, average bolus units, and hypoglycaemia treatment frequency per hour. Bars are averaged over days with actual events in each slot (not total period days). Hovering highlights the hour slot.
 - **Post-Prandial Glucose Excursion by Hour of Day** — for each meal bolus, plots Δ interstitial glucose at +3 h and +4 h after the bolus time, bucketed by the hour the bolus was taken. Column highlight overlay on hover.
-- **Post-Prandial Interstitial Glucose Trace (0–4 h)** — overlays individual 4-hour CGM traces for all meal boluses administered within a user-selected daily time window. Displays a bold cohort median trace and an IQR shaded band. Hover tooltip shows median, IQR, mean, and meal count at each 5-minute timepoint. See [Post-Prandial Glucose Trace](#post-prandial-glucose-trace) for details.
-- **Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)** — same structure as the post-prandial trace, but for hypoglycaemia treatment events. Shows the typical interstitial glucose recovery trajectory in orange following carbohydrate rescue administration. Only displayed when treatment events are present in the selected period.
+- **Post-Prandial Interstitial Glucose Trace (0–4 h)** — overlays individual 4-hour CGM traces for all meal boluses administered within a user-selected daily time window. Displays a bold cohort median trace, IQR shaded band, and an orange bar chart of hypoglycaemia treatment frequency by post-meal time (30-min bins, secondary right axis). Hover tooltip shows median, IQR, mean, meal count, and hypo treatment count at each 5-minute timepoint. See [Post-Prandial Glucose Trace](#post-prandial-glucose-trace) for details.
+- **Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)** — same structure as the post-prandial trace, but for hypoglycaemia treatment events. Shows the typical interstitial glucose recovery trajectory in orange. Only displayed when treatment events are present in the selected period.
+- **Time Since Last Bolus at Hypoglycaemia Treatment** — histogram showing the distribution of time elapsed since the preceding bolus at each hypoglycaemia treatment event, with a configurable time-of-day filter. Orange bars indicate a prior bolus was found within the DIA window (ICR/ISF signal); grey bar indicates no prior bolus (basal signal). X-axis span is derived from the configured DIA.
 
 ### Statistics
 
@@ -162,6 +163,7 @@ A dual-handle range slider lets you select the daily time window for meal inclus
 | Faint individual traces | Each line is one meal; opacity scales with meal count so dense data remains legible |
 | Shaded IQR band | 25th–75th percentile range across all meal traces at each time point |
 | Bold teal median line | Cohort median interstitial glucose change at each 5-minute interval |
+| Orange bars (bottom) | Hypoglycaemia treatment frequency by time since the meal bolus (30-min bins, 0–4 h), on a secondary right-hand axis. Shows how often a hypo treatment was required at each post-prandial timepoint — a pattern concentrated at 1–3 h suggests an ICR or ISF issue for meals in the selected window |
 
 A value of 0 mmol/L indicates return to pre-prandial glucose baseline. Positive values indicate post-prandial hyperglycaemia; negative values indicate post-prandial hypoglycaemia relative to the pre-meal level.
 
@@ -169,7 +171,7 @@ A value of 0 mmol/L indicates return to pre-prandial glucose baseline. Positive 
 
 ## IOB Calculation
 
-Insulin-on-board is calculated using a bilinear insulin activity curve. The duration of insulin action (DIA) is user-configurable (3–6 hours, default 5 h). Peak activity is set at 35% of DIA. IOB is computed at every CGM timestamp across the full dataset.
+Insulin-on-board is calculated using a bilinear insulin activity curve. The duration of insulin action (DIA) is user-configurable (3–6 hours, default 5 h). Peak activity is set at 35% of DIA. IOB is sampled on a dense 5-minute grid spanning the full dataset, independent of CGM timestamps, so the curve remains smooth and continuous even across sensor gaps.
 
 ---
 
@@ -178,7 +180,7 @@ Insulin-on-board is calculated using a bilinear insulin activity curve. The dura
 - **No data is sent anywhere** unless you enter an API key and click Analyse.
 - If you use the Anthropic API, your statistics summary (no raw CGM values) is sent to Anthropic's servers for analysis. No data is retained beyond the API call per Anthropic's standard terms.
 - If you use a local provider (Ollama, llama.cpp, OpenClaw, LM Studio), all processing happens entirely on your machine.
-- No cookies, no localStorage, no telemetry — all session state is in-memory only.
+- **No cookies, no telemetry** — all session state is in-memory only. `localStorage` is used solely to persist your light/dark theme preference across sessions.
 
 ---
 
@@ -196,12 +198,44 @@ All AI-generated analysis — including pattern summaries, insulin dosing commen
 
 - **Zero dependencies to install** — JSZip and Chart.js are loaded from cdnjs.cloudflare.com; fonts from Google Fonts
 - **Single HTML file** — all JavaScript, CSS, and logic are fully self-contained
-- **No cookies, no localStorage, no telemetry** — all state is held in-memory for the duration of the session
+- **No cookies, no telemetry** — all session state is held in-memory. `localStorage` is used only to persist the light/dark theme preference
 - **Responsive** — designed for desktop and tablet; touch pan and pinch-to-zoom are supported on the main chart; the controls bar sticks to the top of the viewport on scroll
 
 ---
 
 ## Changelog
+
+### v0.26.2-beta4 (2026-03-30)
+
+**Adjusted Basal — ROC signal and full 24-hour coverage**
+- The rate-of-change component of the Adjusted Basal formula now uses `rawMedian → central difference → Gaussian smooth (σ=1.5)`, matching the ROC chart's median line exactly. Previously used a separate per-reading derivative pipeline that could diverge from the displayed chart.
+- Both the ROC chart and the Adjusted Basal now use circular wrapping for the central difference, so hours 0 and 23 are no longer null — the curves cover the full 24 hours.
+
+**Glucose Rate of Change by Hour of Day — pipeline change**
+- The median and mean ROC curves now derive from `rawMedian → central difference → Gaussian smooth` rather than averaging per-reading derivatives. The IQR band still uses per-reading derivatives for a realistic spread. This gives a cleaner median line that directly reflects the hour-to-hour glucose trend.
+
+**CGM gap handling**
+- The CGM trace now **breaks visually at gaps ≥ 5 minutes** (one missed reading) rather than interpolating across sensor gaps. `spanGaps: false` is set on the Chart.js dataset.
+- Sub-physiological readings below 2.2 mmol/L (sensor warmup artefacts) are excluded at parse time from all statistics and chart rendering.
+- The hover tooltip remains active during CGM gaps, showing a *"CGM gap"* label and continuing to display basal rate, IOB, and nearby boluses.
+- A single named constant `CGM_GAP_MS` (5 minutes) replaces all previously hardcoded 16-minute gap thresholds throughout the codebase.
+
+**IOB curve**
+- Sampled on a dense independent 5-minute grid spanning the full dataset rather than being anchored to CGM timestamps. The curve is smooth and continuous across sensor gaps.
+
+**Post-Prandial Interstitial Glucose Trace — hypo timing overlay**
+- Orange bars now appear at the bottom of the post-prandial trace canvas showing hypoglycaemia treatment frequency by time since the meal bolus (30-min bins, 0–4 h). Rendered on a secondary right-hand y-axis. The overlay directly answers whether hypos following meals in the selected window cluster within the DIA window (ICR/ISF signal) or later (basal signal). Hover tooltip includes the hypo count for the hovered time slot.
+
+**Time Since Last Bolus at Hypoglycaemia Treatment (new panel)**
+- Histogram showing time elapsed since the preceding bolus at each hypoglycaemia treatment event, within a configurable time-of-day window (dual-handle slider, same style as the meal window). Fixed bins covering 0 → DIA in 30-minute steps; DIA boundary is derived from the IOB setting. Orange bars = prior bolus found within DIA (ICR/ISF signal); grey bar = no prior bolus found (basal-only period = basal rate signal). Hover tooltip provides count, percentage, and clinical interpretation hint for each bar.
+
+**Glucose by Hour of Day — hypo treatment frequency curve**
+- A dashed orange curve in the bottom 20% of the Glucose by Hour of Day plot shows Gaussian-smoothed hypoglycaemia treatment frequency (avg events/day per hour). Hidden when no hypo events are present. Tooltip reports the per-day rate for the hovered hour.
+
+**Bug fix**
+- `canvas is not defined` ReferenceError in main mousemove handler — `const canvas` declaration restored after being accidentally consumed during an edit.
+
+---
 
 ### v0.26.2-beta3 (2026-03-26)
 
