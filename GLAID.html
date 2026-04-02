@@ -556,6 +556,50 @@
   #hypoTimingWindowEnd {
     pointer-events: none;
   }
+  #correctionWindowStart::-webkit-slider-thumb,
+  #correctionWindowEnd::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #a855f7;
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 0 2px rgba(168,85,247,0.3);
+  }
+  #correctionWindowStart::-moz-range-thumb,
+  #correctionWindowEnd::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #a855f7;
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 0 0 2px rgba(168,85,247,0.3);
+  }
+  #correctionWindowStart,
+  #correctionWindowEnd {
+    pointer-events: none;
+  }
+  #hypoTraceWindowStart::-webkit-slider-thumb,
+  #hypoTraceWindowEnd::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #f97316; border: 2px solid var(--bg);
+    cursor: pointer; pointer-events: auto; position: relative; z-index: 2;
+    box-shadow: 0 0 0 2px rgba(249,115,22,0.3);
+  }
+  #hypoTraceWindowStart::-moz-range-thumb,
+  #hypoTraceWindowEnd::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #f97316; border: 2px solid var(--bg);
+    cursor: pointer; pointer-events: auto;
+    box-shadow: 0 0 0 2px rgba(249,115,22,0.3);
+  }
+  #hypoTraceWindowStart, #hypoTraceWindowEnd { pointer-events: none; }
   #mealWindowStart::-webkit-slider-runnable-track,
   #mealWindowEnd::-webkit-slider-runnable-track {
     background: transparent;
@@ -933,12 +977,59 @@
           <div class="tod-title" style="color:#f97316">Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)</div>
           <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="hypoTraceNLabel"></span>
         </div>
+        <!-- Time window slider -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Time Window</span>
+          <div id="hypoTraceSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+            <div style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
+            <div id="hypoTraceSliderFill" style="position:absolute;top:50%;height:4px;background:#f97316;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+            <div id="hypoTraceSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+            <input type="range" id="hypoTraceWindowStart" min="0" max="24" step="0.25" value="0"
+              style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
+              oninput="onHypoTraceWindowChange()">
+            <input type="range" id="hypoTraceWindowEnd" min="0" max="24" step="0.25" value="24"
+              style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:4"
+              oninput="onHypoTraceWindowChange()">
+          </div>
+          <span id="hypoTraceWindowLabel" style="font-size:0.78rem;color:#f97316;font-family:'DM Mono',monospace;white-space:nowrap;min-width:110px;text-align:right">00:00 – 24:00</span>
+        </div>
         <div style="position:relative;display:block">
           <canvas id="hypoTraceCanvas" height="260" style="width:100%;display:block"></canvas>
           <canvas id="hypoTraceOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
         </div>
         <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.7">
-          Interstitial glucose traces are plotted for 4 hours following each hypoglycaemia treatment event (0.05 U bolus used as a carbohydrate rescue signal). The bold line represents the cohort median. Shaded band = interquartile range. Δ glucose is normalised to the interstitial glucose at time 0 (treatment administration). A value of 0 indicates no change from the pre-treatment level.
+          Interstitial glucose traces are plotted for 4 hours following each hypoglycaemia treatment event (0.05 U bolus used as a carbohydrate rescue signal) administered within the selected daily time window. The bold line represents the cohort median. Shaded band = interquartile range. Δ glucose is normalised to the interstitial glucose at time 0 (treatment administration). A value of 0 indicates no change from the pre-treatment level.
+        </div>
+      </div>
+
+      <!-- Post-correction bolus glucose trace -->
+      <div id="correctionTraceSection" style="display:none;margin-top:20px">
+        <div class="tod-header" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div class="tod-title" style="color:#a855f7">Post-Correction Bolus Interstitial Glucose Trace (0–4 h)</div>
+          <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="correctionTraceNLabel"></span>
+        </div>
+        <!-- Time window slider -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Time Window</span>
+          <div id="correctionSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+            <div style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
+            <div id="correctionSliderFill" style="position:absolute;top:50%;height:4px;background:#a855f7;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+            <div id="correctionSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+            <input type="range" id="correctionWindowStart" min="0" max="24" step="0.25" value="0"
+              style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
+              oninput="onCorrectionWindowChange()">
+            <input type="range" id="correctionWindowEnd" min="0" max="24" step="0.25" value="24"
+              style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:4"
+              oninput="onCorrectionWindowChange()">
+          </div>
+          <span id="correctionWindowLabel" style="font-size:0.78rem;color:#a855f7;font-family:'DM Mono',monospace;white-space:nowrap;min-width:110px;text-align:right">00:00 – 24:00</span>
+        </div>
+        <div style="position:relative;display:block">
+          <canvas id="correctionTraceCanvas" height="260" style="width:100%;display:block"></canvas>
+          <canvas id="correctionTraceOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:block"></canvas>
+        </div>
+        <div style="font-size:0.68rem;color:var(--muted);font-family:'DM Mono',monospace;margin-top:6px;padding-left:4px;line-height:1.7">
+          Interstitial glucose traces are plotted for 4 hours following each correction bolus (insulin-only, no carbohydrate entry, excluding 0.05 U hypoglycaemia treatments) administered within the selected daily time window. Each trace is normalised by the bolus dose so the y-axis reads mmol/L per unit of insulin delivered, making traces from different correction doses directly comparable. The bold line represents the cohort median. Shaded band = interquartile range. A value of 0 indicates no glucose change per unit of insulin.
         </div>
       </div>
 
@@ -1097,6 +1188,7 @@
 <div class="bolus-tooltip" id="mealTraceTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="hypoTraceTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="hypoTimingTooltip" style="max-width:230px;line-height:1.6"></div>
+<div class="bolus-tooltip" id="correctionTraceTooltip" style="max-width:230px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mainChartTooltip" style="max-width:260px;line-height:1.6"></div>
 <div class="bolus-tooltip" id="mealRespTooltip" style="max-width:230px;line-height:1.6"></div>
 
@@ -1513,35 +1605,50 @@ function shiftPeriod(dir) {
   const fromStr = document.getElementById('dateFrom').value;
   const toStr   = document.getElementById('dateTo').value;
 
-  // Work in midnight-to-midnight calendar days to avoid any sub-day drift.
-  const fromDay = new Date(fromStr + 'T00:00:00');
-  const toDay   = new Date(toStr   + 'T00:00:00');
-  // spanDays = number of calendar days in the window (inclusive: e.g. Mon–Sun = 7)
-  const spanDays = Math.max(1, Math.round((toDay - fromDay) / 86400000) + 1);
-
-  const allTimes = [...rawCGM, ...rawBasal, ...rawBolus].map(r => r.ts.getTime());
-  const dataMinStr = fmtDateInput(new Date(Math.min(...allTimes)));
-  const dataMaxStr = fmtDateInput(new Date(Math.max(...allTimes)));
-  const dataMinDay = new Date(dataMinStr + 'T00:00:00');
-  const dataMaxDay = new Date(dataMaxStr + 'T00:00:00');
-
-  let newFrom = new Date(fromDay.getTime() + dir * spanDays * 86400000);
-  let newTo   = new Date(toDay.getTime()   + dir * spanDays * 86400000);
-
-  // Clamp to data boundaries (in whole days)
-  if (newFrom < dataMinDay) {
-    newFrom = new Date(dataMinDay);
-    newTo   = new Date(newFrom.getTime() + (spanDays - 1) * 86400000);
+  // Parse as local calendar dates (no time component to avoid DST shifts)
+  function parseYMD(s) {
+    const [y, m, d] = s.split('-').map(Number);
+    return { y, m, d };
   }
-  if (newTo > dataMaxDay) {
-    newTo   = new Date(dataMaxDay);
-    newFrom = new Date(newTo.getTime() - (spanDays - 1) * 86400000);
+  // Add `days` calendar days to a {y,m,d} object
+  function addDays(ymd, days) {
+    const dt = new Date(ymd.y, ymd.m - 1, ymd.d + days);
+    return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate() };
   }
-  if (newFrom < dataMinDay) newFrom = new Date(dataMinDay);
+  function ymdToStr({ y, m, d }) {
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+  function ymdToMs({ y, m, d }) {
+    return new Date(y, m - 1, d).getTime();
+  }
+
+  const fromYMD = parseYMD(fromStr);
+  const toYMD   = parseYMD(toStr);
+
+  // Window size in whole calendar days (inclusive)
+  const spanDays = Math.round((ymdToMs(toYMD) - ymdToMs(fromYMD)) / 86400000) + 1;
+
+  const allTimes   = [...rawCGM, ...rawBasal, ...rawBolus].map(r => r.ts.getTime());
+  const dataMinYMD = parseYMD(fmtDateInput(new Date(Math.min(...allTimes))));
+  const dataMaxYMD = parseYMD(fmtDateInput(new Date(Math.max(...allTimes))));
+
+  let newFrom = addDays(fromYMD, dir * spanDays);
+  let newTo   = addDays(toYMD,   dir * spanDays);
+
+  // Clamp to data boundaries preserving window size
+  if (ymdToMs(newFrom) < ymdToMs(dataMinYMD)) {
+    newFrom = dataMinYMD;
+    newTo   = addDays(newFrom, spanDays - 1);
+  }
+  if (ymdToMs(newTo) > ymdToMs(dataMaxYMD)) {
+    newTo   = dataMaxYMD;
+    newFrom = addDays(newTo, -(spanDays - 1));
+  }
+  if (ymdToMs(newFrom) < ymdToMs(dataMinYMD)) newFrom = dataMinYMD;
 
   document.querySelectorAll('#presetBtns .btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('dateFrom').value = fmtDateInput(newFrom);
-  document.getElementById('dateTo').value   = fmtDateInput(newTo);
+  document.getElementById('dateFrom').value = ymdToStr(newFrom);
+  document.getElementById('dateTo').value   = ymdToStr(newTo);
   applyFilter();
 }
 
@@ -2320,6 +2427,7 @@ function updateStats() {
   buildTOD(visCGM, visBasal, isfMmol, visBolus);
   buildMealTrace(visCGM, visBolus);
   buildHypoTrace(visCGM, visBolus);
+  buildCorrectionTrace(visCGM, visBolus);
   buildHypoTiming(visBolus);
 }
 
@@ -2711,10 +2819,46 @@ function buildMealTrace(visCGM, visBolus) {
 }
 
 // ─── Post-Hypo Treatment Glucose Trace (0–4 h) ───────────────────────────────
+let hypoTraceVisCGM   = [];
+let hypoTraceVisBolus = [];
+
+function onHypoTraceWindowChange() {
+  const s = parseFloat(document.getElementById('hypoTraceWindowStart').value);
+  const e = parseFloat(document.getElementById('hypoTraceWindowEnd').value);
+  let lo = Math.min(s, e), hi = Math.max(s, e);
+  if (hi - lo < 0.5) { if (s <= e) hi = lo + 0.5; else lo = hi - 0.5;
+    document.getElementById('hypoTraceWindowStart').value = lo;
+    document.getElementById('hypoTraceWindowEnd').value   = hi; }
+  const fill = document.getElementById('hypoTraceSliderFill');
+  const pan  = document.getElementById('hypoTraceSliderPan');
+  const wrap = document.getElementById('hypoTraceSliderWrap');
+  if (fill && wrap) {
+    const thumbR = 8, trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
+    const scale = (trackW - 2*thumbR) / trackW, offset = thumbR / trackW * 100;
+    const leftPct  = offset + (lo / 24) * scale * 100;
+    const widthPct = ((hi - lo) / 24) * scale * 100;
+    fill.style.left = leftPct + '%'; fill.style.width = widthPct + '%';
+    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
+  }
+  const fmt = v => { const h=Math.floor(v),m=Math.round((v-h)*60);
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); };
+  document.getElementById('hypoTraceWindowLabel').textContent =
+    fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
+  if (hypoTraceVisCGM.length) buildHypoTrace(hypoTraceVisCGM, hypoTraceVisBolus);
+}
+
 function buildHypoTrace(visCGM, visBolus) {
+  hypoTraceVisCGM   = visCGM;
+  hypoTraceVisBolus = visBolus;
+
   const section = document.getElementById('hypoTraceSection');
   const canvas  = document.getElementById('hypoTraceCanvas');
   if (!canvas || !section) return;
+
+  const startH = parseFloat(document.getElementById('hypoTraceWindowStart')?.value ?? 0);
+  const endH   = parseFloat(document.getElementById('hypoTraceWindowEnd')?.value ?? 24);
+  const winLo  = Math.min(startH, endH);
+  const winHi  = Math.max(startH, endH);
 
   const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
   function cgmNear(targetMs, tolMs = 600000) {
@@ -2729,8 +2873,12 @@ function buildHypoTrace(visCGM, visBolus) {
     return best && bestDiff <= tolMs ? best.glc : null;
   }
 
-  // Identify hypo treatment events: 0.05 U boluses with no carb entry
-  const hypos = visBolus.filter(b => b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001);
+  // Identify hypo treatment events within the selected time window
+  const hypos = visBolus.filter(b => {
+    if (b.carbs !== 0 || Math.abs(b.insulin - 0.05) >= 0.001) return false;
+    const h = b.ts.getHours() + b.ts.getMinutes() / 60;
+    return h >= winLo && h < winHi;
+  });
 
   const STEP = 5;
   const STEPS = 240 / STEP + 1;
@@ -2928,7 +3076,250 @@ function buildHypoTrace(visCGM, visBolus) {
     colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
 }
 
-// ─── Time Since Last Bolus at Hypo Treatment ─────────────────────────────────
+// ─── Post-Correction Bolus Glucose Trace (0–4 h) ─────────────────────────────
+let correctionTraceVisCGM  = [];
+let correctionTraceVisBolus = [];
+
+function onCorrectionWindowChange() {
+  const s = parseFloat(document.getElementById('correctionWindowStart').value);
+  const e = parseFloat(document.getElementById('correctionWindowEnd').value);
+  let lo = Math.min(s, e), hi = Math.max(s, e);
+  if (hi - lo < 0.5) {
+    if (s <= e) hi = lo + 0.5; else lo = hi - 0.5;
+    document.getElementById('correctionWindowStart').value = lo;
+    document.getElementById('correctionWindowEnd').value   = hi;
+  }
+  const fill = document.getElementById('correctionSliderFill');
+  const pan  = document.getElementById('correctionSliderPan');
+  const wrap = document.getElementById('correctionSliderWrap');
+  if (fill && wrap) {
+    const thumbR = 8;
+    const trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
+    const scale  = (trackW - 2 * thumbR) / trackW;
+    const offset = thumbR / trackW * 100;
+    const leftPct  = offset + (lo / 24) * scale * 100;
+    const widthPct = ((hi - lo) / 24) * scale * 100;
+    fill.style.left  = leftPct + '%';
+    fill.style.width = widthPct + '%';
+    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
+  }
+  const fmt = v => {
+    const h = Math.floor(v), m = Math.round((v - h) * 60);
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  };
+  document.getElementById('correctionWindowLabel').textContent =
+    fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
+  if (correctionTraceVisCGM.length)
+    buildCorrectionTrace(correctionTraceVisCGM, correctionTraceVisBolus);
+}
+
+function buildCorrectionTrace(visCGM, visBolus) {
+  correctionTraceVisCGM   = visCGM;
+  correctionTraceVisBolus = visBolus;
+
+  const section = document.getElementById('correctionTraceSection');
+  const canvas  = document.getElementById('correctionTraceCanvas');
+  if (!canvas || !section) return;
+
+  const startH = parseFloat(document.getElementById('correctionWindowStart').value);
+  const endH   = parseFloat(document.getElementById('correctionWindowEnd').value);
+  const winLo  = Math.min(startH, endH);
+  const winHi  = Math.max(startH, endH);
+
+  const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
+  function cgmNear(targetMs, tolMs = 600000) {
+    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
+      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
+      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return best && bestDiff <= tolMs ? best.glc : null;
+  }
+
+  // Correction boluses: insulin-only, no carbs, not a hypo treatment (0.05 U)
+  const corrections = visBolus.filter(b => {
+    if ((b.carbs || 0) > 0) return false;
+    if (b.insulin <= 0) return false;
+    if (Math.abs(b.insulin - 0.05) < 0.001) return false;
+    const h = b.ts.getHours() + b.ts.getMinutes() / 60;
+    return h >= winLo && h < winHi;
+  });
+
+  const STEP = 5;
+  const STEPS = 240 / STEP + 1;
+  const traces = [];
+  for (const c of corrections) {
+    const ms = c.ts.getTime();
+    const g0 = cgmNear(ms, 600000);
+    if (g0 === null) continue;
+    const pts = [];
+    for (let i = 0; i < STEPS; i++) {
+      const gv = cgmNear(ms + i * STEP * 60000, 360000);
+      pts.push(gv !== null ? (gv - g0) / c.insulin : null);
+    }
+    const nonNull = pts.filter(v => v !== null).length;
+    if (nonNull / pts.length < 0.7) continue;
+    traces.push({ pts, insulin: c.insulin });
+  }
+
+  document.getElementById('correctionTraceNLabel').textContent =
+    `${traces.length} correction${traces.length !== 1 ? 's' : ''} in window`;
+
+  section.style.display = traces.length > 0 ? 'block' : 'none';
+  if (traces.length === 0) return;
+
+  // ── Canvas setup ─────────────────────────────────────────────────────────────
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = '100%';
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
+  const cssH = 260;
+  canvas.width  = cssW * dpr; canvas.height = cssH * dpr;
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = cssW, H = cssH;
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = { top: 20, right: 20, bottom: 32, left: 56 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  const allDeltas = traces.flatMap(tr => tr.pts.filter(v => v !== null));
+  const yMin = Math.min(Math.floor(Math.min(...allDeltas) - 0.5), -2.0);
+  const yMax = Math.max(Math.ceil( Math.max(...allDeltas) + 0.5),  1.0);
+
+  const toX = minOffset => PAD.left + (minOffset / 240) * plotW;
+  const toY = v => PAD.top + plotH * (1 - (v - yMin) / (yMax - yMin));
+
+  // Backgrounds
+  ctx.fillStyle = 'rgba(245,158,11,0.04)';
+  ctx.fillRect(PAD.left, toY(yMax), plotW, toY(0) - toY(yMax));
+  ctx.fillStyle = 'rgba(239,68,68,0.04)';
+  ctx.fillRect(PAD.left, toY(0), plotW, toY(yMin) - toY(0));
+
+  // Grid lines — horizontal at adaptive y intervals, vertical at 30-min marks
+  ctx.setLineDash([3, 3]);
+  ctx.font = '10px DM Mono, monospace'; ctx.textAlign = 'right';
+  const yRange = yMax - yMin;
+  const yStep = yRange <= 4 ? 0.5 : yRange <= 8 ? 1 : yRange <= 16 ? 2 : 4;
+  for (let v = Math.ceil(yMin / yStep) * yStep; v <= yMax + 0.001; v += yStep) {
+    v = Math.round(v * 1000) / 1000; // float precision
+    const y = toY(v);
+    ctx.strokeStyle = v === 0 ? 'rgba(100,116,139,0.5)' : 'rgba(31,45,69,0.8)';
+    ctx.lineWidth = v === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,116,139,0.7)';
+    ctx.fillText(Number.isInteger(v) ? `${v}` : v.toFixed(1), PAD.left - 4, y + 3.5);
+  }
+  // Vertical guides at 30-min intervals
+  ctx.strokeStyle = 'rgba(31,45,69,0.5)'; ctx.lineWidth = 1;
+  [30, 60, 90, 120, 150, 180, 210].forEach(t => {
+    const x = toX(t);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + plotH); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  // Zero line label
+  ctx.fillStyle = 'rgba(100,116,139,0.5)';
+  ctx.font = '9px DM Mono, monospace'; ctx.textAlign = 'left';
+  ctx.fillText('no glucose change per unit', PAD.left + 4, toY(0) - 3);
+
+  // X axis
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font = '10px DM Mono, monospace'; ctx.textAlign = 'center';
+  [0, 30, 60, 90, 120, 150, 180, 210, 240].forEach(t => {
+    const x = toX(t);
+    ctx.fillText(`+${t} min`, x, H - 6);
+    ctx.strokeStyle = 'rgba(31,45,69,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.bottom); ctx.lineTo(x, H - PAD.bottom + 4); ctx.stroke();
+  });
+
+  // Y axis label
+  ctx.save();
+  ctx.translate(13, PAD.top + plotH / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(168,85,247,0.8)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.fillText('Δ Interstitial Glucose / Dose (mmol/L/U)', 0, 0);
+  ctx.restore();
+
+  // Individual traces (faint purple)
+  const alpha = Math.min(0.45, Math.max(0.06, 50 / traces.length));
+  for (const tr of traces) {
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < STEPS; i++) {
+      if (tr.pts[i] === null) { started = false; continue; }
+      const x = toX(i * STEP), y = toY(tr.pts[i]);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(168,85,247,${alpha})`;
+    ctx.lineWidth = 1; ctx.lineJoin = 'round'; ctx.stroke();
+  }
+
+  // Per-timepoint stats
+  function pctile(sorted, p) {
+    if (!sorted.length) return null;
+    const idx = (p / 100) * (sorted.length - 1);
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+  const colMedian = new Array(STEPS).fill(null);
+  const colP25    = new Array(STEPS).fill(null);
+  const colP75    = new Array(STEPS).fill(null);
+  const colN      = new Array(STEPS).fill(0);
+  const colMean   = new Array(STEPS).fill(null);
+  for (let i = 0; i < STEPS; i++) {
+    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
+    colN[i] = col.length;
+    if (col.length < 2) continue;
+    const s = [...col].sort((a,b) => a-b);
+    colMedian[i] = pctile(s, 50);
+    colP25[i]    = pctile(s, 25);
+    colP75[i]    = pctile(s, 75);
+    colMean[i]   = col.reduce((a,b) => a+b, 0) / col.length;
+  }
+
+  // IQR band (purple)
+  const iqrPts = Array.from({length:STEPS},(_,i)=>colP25[i]!==null?[toX(i*STEP),toY(colP25[i])]:null).filter(Boolean);
+  const iqrTop = Array.from({length:STEPS},(_,i)=>colP75[i]!==null?[toX(i*STEP),toY(colP75[i])]:null).filter(Boolean);
+  if (iqrTop.length > 1 && iqrPts.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
+    for (const [x,y] of iqrTop) ctx.lineTo(x,y);
+    for (let i=iqrPts.length-1;i>=0;i--) ctx.lineTo(iqrPts[i][0],iqrPts[i][1]);
+    ctx.closePath(); ctx.fillStyle='rgba(168,85,247,0.18)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(iqrTop[0][0],iqrTop[0][1]);
+    for (const [x,y] of iqrTop) ctx.lineTo(x,y);
+    ctx.strokeStyle='rgba(168,85,247,0.35)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(iqrPts[0][0],iqrPts[0][1]);
+    for (const [x,y] of iqrPts) ctx.lineTo(x,y); ctx.stroke();
+  }
+
+  // Median trace (bold purple)
+  ctx.beginPath();
+  let mStarted = false;
+  for (let i = 0; i < STEPS; i++) {
+    if (colMedian[i] === null) { mStarted = false; continue; }
+    const x = toX(i * STEP), y = toY(colMedian[i]);
+    if (!mStarted) { ctx.moveTo(x, y); mStarted = true; } else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 3.5;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+
+  // Legend
+  ctx.fillStyle = 'rgba(168,85,247,0.8)'; ctx.font = '9px DM Mono, monospace'; ctx.textAlign = 'left';
+  ctx.fillText('Median', PAD.left + 8, PAD.top + 14);
+  ctx.fillStyle = 'rgba(168,85,247,0.22)';
+  ctx.fillRect(PAD.left + 50, PAD.top + 6, 14, 8);
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.fillText('IQR', PAD.left + 66, PAD.top + 14);
+
+  canvas._correctionTrace = { PAD, plotW, plotH, toX, toY, STEP, STEPS,
+    colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
+}
 function onHypoTimingTODChange() {
   const s = parseFloat(document.getElementById('hypoTimingWindowStart').value);
   const e = parseFloat(document.getElementById('hypoTimingWindowEnd').value);
@@ -3707,6 +4098,7 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   buildMealResponse(visCGM, visBolus2);
   buildMealTrace(visCGM, visBolus2);
   buildHypoTrace(visCGM, visBolus2);
+  buildCorrectionTrace(visCGM, visBolus2);
   buildHypoTiming(visBolus2);
 }
 
@@ -5237,6 +5629,69 @@ document.addEventListener('mousemove', (e) => {
       }
     }
   }
+
+  // ── Post-correction bolus trace tooltip ───────────────────────────────────────
+  {
+    const ctCanvas = document.getElementById('correctionTraceCanvas');
+    const ctTip    = document.getElementById('correctionTraceTooltip');
+    if (ctCanvas && ctCanvas._correctionTrace && ctTip) {
+      const ctRect = ctCanvas.getBoundingClientRect();
+      if (e.clientX >= ctRect.left && e.clientX <= ctRect.right &&
+          e.clientY >= ctRect.top  && e.clientY <= ctRect.bottom) {
+        const { PAD: cPAD, plotW: cPlotW, STEP: cSTEP, STEPS: cSTEPS,
+                colMedian, colP25, colP75, colMean, colN } = ctCanvas._correctionTrace;
+        const xRel = e.clientX - ctRect.left - cPAD.left;
+        if (xRel >= 0 && xRel <= cPlotW) {
+          const idx = Math.max(0, Math.min(cSTEPS-1, Math.round((xRel/cPlotW)*240/cSTEP)));
+          const tMin = idx * cSTEP;
+          const n = colN[idx];
+          if (n > 0) {
+            const ctOverlay = document.getElementById('correctionTraceOverlay');
+            if (ctOverlay) {
+              const dpr = window.devicePixelRatio || 1;
+              const cssW = ctRect.width, cssH = ctRect.height;
+              ctOverlay.width = cssW*dpr; ctOverlay.height = cssH*dpr;
+              ctOverlay.style.width = cssW+'px'; ctOverlay.style.height = cssH+'px';
+              const oc = ctOverlay.getContext('2d');
+              oc.clearRect(0,0,ctOverlay.width,ctOverlay.height);
+              oc.save(); oc.scale(dpr,dpr);
+              const x0 = cPAD.left+(tMin/240)*cPlotW;
+              const x1 = cPAD.left+((tMin+cSTEP)/240)*cPlotW;
+              oc.fillStyle='rgba(168,85,247,0.10)';
+              oc.fillRect(x0,cPAD.top,x1-x0,cssH-cPAD.top-cPAD.bottom);
+              oc.strokeStyle='rgba(168,85,247,0.35)'; oc.lineWidth=1;
+              oc.beginPath(); oc.moveTo(x0,cPAD.top); oc.lineTo(x0,cssH-cPAD.bottom); oc.stroke();
+              oc.beginPath(); oc.moveTo(x1,cPAD.top); oc.lineTo(x1,cssH-cPAD.bottom); oc.stroke();
+              oc.restore();
+            }
+            const fmt = v => v!==null?(v>=0?`+${v.toFixed(2)}`:v.toFixed(2)):'—';
+            const tipW = 230;
+            const lft = e.clientX+14+tipW>window.innerWidth?e.clientX-tipW-8:e.clientX+14;
+            ctTip.style.left = lft+'px'; ctTip.style.top = (e.clientY-10)+'px';
+            ctTip.style.display = 'block';
+            ctTip.innerHTML = `<strong>+${tMin} min post-correction</strong><br>
+              <span style="color:#a855f7">Median: ${fmt(colMedian[idx])} mmol/L/U</span><br>
+              <span style="color:rgba(168,85,247,0.65)">IQR: ${fmt(colP25[idx])} – ${fmt(colP75[idx])} mmol/L/U</span><br>
+              <span style="color:#3b82f6">Mean: ${fmt(colMean[idx])} mmol/L/U</span><br>
+              <span style="color:var(--muted)">n = ${n} correction${n!==1?'s':''}</span>`;
+          } else {
+            ctTip.style.display='none';
+            const ov=document.getElementById('correctionTraceOverlay');
+            if(ov) ov.getContext('2d').clearRect(0,0,ov.width,ov.height);
+          }
+        } else {
+          ctTip.style.display='none';
+          const ov=document.getElementById('correctionTraceOverlay');
+          if(ov) ov.getContext('2d').clearRect(0,0,ov.width,ov.height);
+        }
+      } else {
+        ctTip.style.display='none';
+        const ov=document.getElementById('correctionTraceOverlay');
+        if(ov) ov.getContext('2d').clearRect(0,0,ov.width,ov.height);
+      }
+    }
+  }
+
   const canvas = document.getElementById('todCanvas');
   const overlay = document.getElementById('todOverlay');
   const tooltip = document.getElementById('bolusTooltip');
@@ -5421,6 +5876,10 @@ document.addEventListener('mouseleave', () => {
   if (htTip) htTip.style.display = 'none';
   const timingTip = document.getElementById('hypoTimingTooltip');
   if (timingTip) timingTip.style.display = 'none';
+  const ctOv = document.getElementById('correctionTraceOverlay');
+  if (ctOv) ctOv.getContext('2d').clearRect(0, 0, ctOv.width, ctOv.height);
+  const ctTip = document.getElementById('correctionTraceTooltip');
+  if (ctTip) ctTip.style.display = 'none';
 });
 
 // Redraw TOD on resize
@@ -5432,6 +5891,7 @@ window.addEventListener('resize', () => {
       buildTOD();
       if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus);
       if (mealTraceVisCGM.length) buildHypoTrace(mealTraceVisCGM, mealTraceVisBolus);
+      if (mealTraceVisCGM.length) buildCorrectionTrace(mealTraceVisCGM, mealTraceVisBolus);
       if (mealTraceVisCGM.length) buildHypoTiming(mealTraceVisBolus);
     }
   }, 120);
@@ -5550,6 +6010,49 @@ window.addEventListener('load', () => {
   document.addEventListener('touchend', panEnd);
 });
 
+// ─── Hypo Trace TOD slider ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap   = document.getElementById('hypoTraceSliderWrap');
+  const inpS   = document.getElementById('hypoTraceWindowStart');
+  const inpE   = document.getElementById('hypoTraceWindowEnd');
+  const panBar = document.getElementById('hypoTraceSliderPan');
+  if (!wrap || !inpS || !inpE || !panBar) return;
+
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.target === panBar) return;
+    const rect = wrap.getBoundingClientRect();
+    const clickVal = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 24;
+    const s = parseFloat(inpS.value), en = parseFloat(inpE.value);
+    const useStart = Math.abs(clickVal - s) <= Math.abs(clickVal - en);
+    const target = useStart ? inpS : inpE, other = useStart ? inpE : inpS;
+    target.style.zIndex = '5'; other.style.zIndex = '3';
+    target.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
+  });
+  document.addEventListener('mouseup', () => {
+    inpS.style.pointerEvents = 'none'; inpE.style.pointerEvents = 'none';
+  });
+
+  let panActive = false, panStartX = 0, panStartS = 0, panStartE = 0;
+  panBar.addEventListener('mousedown', (e) => {
+    e.stopPropagation(); panActive = true; panStartX = e.clientX;
+    panStartS = parseFloat(inpS.value); panStartE = parseFloat(inpE.value);
+    panBar.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!panActive) return;
+    const rect = wrap.getBoundingClientRect();
+    const delta = ((e.clientX - panStartX) / rect.width) * 24;
+    const w = panStartE - panStartS;
+    let newS = panStartS + delta, newE = panStartE + delta;
+    if (newS < 0) { newS = 0; newE = w; }
+    if (newE > 24) { newE = 24; newS = 24 - w; }
+    inpS.value = Math.round(newS * 4) / 4;
+    inpE.value = Math.round(newE * 4) / 4;
+    onHypoTraceWindowChange();
+  });
+  document.addEventListener('mouseup', () => { panActive = false; panBar.style.cursor = 'grab'; });
+});
+
 // ─── Hypo Timing TOD slider (dual-handle, same pattern as meal window) ────────
 document.addEventListener('DOMContentLoaded', () => {
   const wrap   = document.getElementById('hypoTimingSliderWrap');
@@ -5592,6 +6095,56 @@ document.addEventListener('DOMContentLoaded', () => {
     inpS.value = Math.round(newS * 4) / 4;
     inpE.value = Math.round(newE * 4) / 4;
     onHypoTimingTODChange();
+  }
+  function panEnd() { panActive = false; panBar.style.cursor = 'grab'; }
+
+  panBar.addEventListener('mousedown', (e) => { e.stopPropagation(); panStart(e.clientX); });
+  document.addEventListener('mousemove', (e) => { if (panActive) panMove(e.clientX); });
+  document.addEventListener('mouseup', panEnd);
+});
+
+// ─── Correction Trace TOD slider (dual-handle, same pattern as meal window) ───
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap   = document.getElementById('correctionSliderWrap');
+  const inpS   = document.getElementById('correctionWindowStart');
+  const inpE   = document.getElementById('correctionWindowEnd');
+  const panBar = document.getElementById('correctionSliderPan');
+  if (!wrap || !inpS || !inpE || !panBar) return;
+
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.target === panBar) return;
+    const rect  = wrap.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const clickVal = ratio * 24;
+    const s = parseFloat(inpS.value), en = parseFloat(inpE.value);
+    const useStart = Math.abs(clickVal - s) <= Math.abs(clickVal - en);
+    const target = useStart ? inpS : inpE;
+    const other  = useStart ? inpE : inpS;
+    target.style.zIndex = '5'; other.style.zIndex = '3';
+    target.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
+  });
+
+  document.addEventListener('mouseup', () => {
+    inpS.style.pointerEvents = 'none'; inpE.style.pointerEvents = 'none';
+  });
+
+  let panActive = false, panStartX = 0, panStartS = 0, panStartE = 0;
+  function panStart(clientX) {
+    panActive = true; panStartX = clientX;
+    panStartS = parseFloat(inpS.value); panStartE = parseFloat(inpE.value);
+    panBar.style.cursor = 'grabbing';
+  }
+  function panMove(clientX) {
+    if (!panActive) return;
+    const rect = wrap.getBoundingClientRect();
+    const deltaVal = ((clientX - panStartX) / rect.width) * 24;
+    const width = panStartE - panStartS;
+    let newS = panStartS + deltaVal, newE = panStartE + deltaVal;
+    if (newS < 0) { newS = 0; newE = width; }
+    if (newE > 24) { newE = 24; newS = 24 - width; }
+    inpS.value = Math.round(newS * 4) / 4;
+    inpE.value = Math.round(newE * 4) / 4;
+    onCorrectionWindowChange();
   }
   function panEnd() { panActive = false; panBar.style.cursor = 'grab'; }
 

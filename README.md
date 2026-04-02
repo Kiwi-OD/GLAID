@@ -5,7 +5,7 @@ Chat with your data and extract insights!
 
 Should work for most pumps but currently tailored for Tandem (see section [Hypo Treatment Detection](#hypo-treatment-detection)).
 
-![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta4-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
+![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta5-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
 ---
 
@@ -23,7 +23,8 @@ Should work for most pumps but currently tailored for Tandem (see section [Hypo 
 - **Insulin, Carbs & Hypoglycaemia Treatments by Hour of Day** — side-by-side bar chart showing average grams of carbohydrate, average bolus units, and hypoglycaemia treatment frequency per hour. Bars are averaged over days with actual events in each slot (not total period days). Hovering highlights the hour slot.
 - **Post-Prandial Glucose Excursion by Hour of Day** — for each meal bolus, plots Δ interstitial glucose at +3 h and +4 h after the bolus time, bucketed by the hour the bolus was taken. Column highlight overlay on hover.
 - **Post-Prandial Interstitial Glucose Trace (0–4 h)** — overlays individual 4-hour CGM traces for all meal boluses administered within a user-selected daily time window. Displays a bold cohort median trace, IQR shaded band, and an orange bar chart of hypoglycaemia treatment frequency by post-meal time (30-min bins, secondary right axis). Hover tooltip shows median, IQR, mean, meal count, and hypo treatment count at each 5-minute timepoint. See [Post-Prandial Glucose Trace](#post-prandial-glucose-trace) for details.
-- **Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)** — same structure as the post-prandial trace, but for hypoglycaemia treatment events. Shows the typical interstitial glucose recovery trajectory in orange. Only displayed when treatment events are present in the selected period.
+- **Post-Hypoglycaemia Treatment Glucose Trace (0–4 h)** — same structure as the post-prandial trace, but for hypoglycaemia treatment events, with a configurable daily time window slider. Shows the typical interstitial glucose recovery trajectory in orange. Only displayed when treatment events are present in the selected period.
+- **Post-Correction Bolus Interstitial Glucose Trace (0–4 h)** — overlays 4-hour CGM traces following each correction bolus (insulin-only, no carbohydrate, excluding 0.05 U hypoglycaemia treatments) within a configurable daily time window. Each trace is normalised by the bolus dose so the y-axis reads mmol/L/U, making traces from different correction doses directly comparable. The cohort median provides an empirical insulin sensitivity factor estimate for the selected time window. Adaptive y-axis scaling and 30-minute vertical grid lines ensure readability at any dose range. Displayed in purple.
 - **Time Since Last Bolus at Hypoglycaemia Treatment** — histogram showing the distribution of time elapsed since the preceding bolus at each hypoglycaemia treatment event, with a configurable time-of-day filter. Orange bars indicate a prior bolus was found within the DIA window (ICR/ISF signal); grey bar indicates no prior bolus (basal signal). X-axis span is derived from the configured DIA.
 
 ### Statistics
@@ -204,6 +205,25 @@ All AI-generated analysis — including pattern summaries, insulin dosing commen
 ---
 
 ## Changelog
+
+### v0.26.2-beta5 (2026-03-31)
+
+**New chart: Post-Correction Bolus Interstitial Glucose Trace (0–4 h)**
+- Plots 4-hour interstitial glucose traces following each correction bolus (insulin-only boluses, no carbohydrate entry, excluding 0.05 U hypoglycaemia treatments) within a configurable daily time window.
+- Each trace is **normalised by the bolus dose** — the y-axis reads mmol/L per unit of insulin delivered (mmol/L/U), making traces from different correction doses directly comparable on the same scale.
+- The cohort median serves as an empirical estimate of the insulin sensitivity factor (ISF) for the selected time window and period.
+- Dual-handle purple time window slider (same pan/drag interaction as the meal and hypo sliders).
+- Hover tooltip shows median, IQR, mean, and correction count at each 5-minute timepoint (all in mmol/L/U).
+- Y-axis uses an adaptive step (0.5, 1, 2, or 4 mmol/L/U) to prevent label crowding across the wide range dose-normalised values can span. Vertical dashed grid lines at 30-minute intervals provide time anchors.
+- Only displayed when correction boluses are present in the selected period.
+
+**Post-Hypoglycaemia Treatment Glucose Trace — time window slider added**
+- A dual-handle orange time window slider has been added to the post-hypo trace panel, consistent with the meal and correction trace panels. Hypo treatment events are filtered to the selected daily time window before tracing. This allows isolation of nocturnal vs daytime hypoglycaemia recovery patterns.
+
+**Navigation arrows — month and DST boundary fix**
+- Pressing ◀ or ▶ across a month boundary (or a DST transition) could produce a shifted or incorrectly-sized window due to millisecond arithmetic interacting with DST clock changes. The shift logic now uses pure calendar date arithmetic (`{year, month, day}` components) so the window size is always preserved exactly regardless of month length or clock shifts.
+
+---
 
 ### v0.26.2-beta4 (2026-03-30)
 
