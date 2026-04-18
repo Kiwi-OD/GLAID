@@ -701,6 +701,12 @@
       <input type="number" class="date-input" id="hypoCarbs" min="1" max="100" value="15" onchange="if(dataLoaded){renderChart();updateStats();}" style="width:52px;text-align:center;border-color:rgba(249,115,22,0.35);color:#f97316">
       <span class="ctrl-label">g carbs</span>
     </div>
+    <div class="divider"></div>
+    <div class="ctrl-group" id="exclusionGroup" style="display:none">
+      <span class="ctrl-label" style="color:#ef4444" title="Shift+drag on chart to mark bad data periods">⛔ Excluded</span>
+      <span id="exclusionCount" style="font-size:0.78rem;color:#ef4444;font-family:'DM Mono',monospace;min-width:20px">0</span>
+      <button class="btn" id="clearExclusionsBtn" onclick="clearExclusions()" style="border-color:rgba(239,68,68,0.4);color:#ef4444;font-size:0.7rem;padding:2px 8px" title="Remove all exclusion zones">Clear all</button>
+    </div>
 
   </div>
 
@@ -786,6 +792,7 @@
         <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Bolus</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Correction</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--hypo)"></div> Hypo Tx</div>
+        <div class="legend-item" style="margin-left:auto;font-size:0.65rem;color:var(--muted);opacity:0.6" title="Hold Shift and drag to mark bad data periods. Shift+click a zone to remove it.">⇧ drag to exclude</div>
       </div>
     </div>
     <div id="chartContainer">
@@ -916,12 +923,12 @@
       <!-- Meal window slider -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Meal Window</span>
-        <div id="mealSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+        <div id="mealWindowWrap" style="position:relative;flex:1;min-width:180px;height:28px">
           <!-- Range track -->
-          <div id="mealSliderTrack" style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
-          <div id="mealSliderFill" style="position:absolute;top:50%;height:4px;background:var(--teal);border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+          <div id="mealWindowTrack" style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
+          <div id="mealWindowFill" style="position:absolute;top:50%;height:4px;background:var(--teal);border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
           <!-- Draggable fill overlay — sits above fill, below thumbs; pans both handles -->
-          <div id="mealSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+          <div id="mealWindowPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
           <!-- Start thumb (lower z-index by default, raised dynamically) -->
           <input type="range" id="mealWindowStart" min="0" max="24" step="0.25" value="0"
             style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
@@ -950,10 +957,10 @@
         <!-- Time-of-day slider (identical pattern to meal window) -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
           <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Time Window</span>
-          <div id="hypoTimingSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+          <div id="hypoTimingWindowWrap" style="position:relative;flex:1;min-width:180px;height:28px">
             <div style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
-            <div id="hypoTimingSliderFill" style="position:absolute;top:50%;height:4px;background:#f97316;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
-            <div id="hypoTimingSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+            <div id="hypoTimingWindowFill" style="position:absolute;top:50%;height:4px;background:#f97316;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+            <div id="hypoTimingWindowPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
             <input type="range" id="hypoTimingWindowStart" min="0" max="24" step="0.25" value="0"
               style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
               oninput="onHypoTimingTODChange()">
@@ -980,10 +987,10 @@
         <!-- Time window slider -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
           <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Time Window</span>
-          <div id="hypoTraceSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+          <div id="hypoTraceWindowWrap" style="position:relative;flex:1;min-width:180px;height:28px">
             <div style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
-            <div id="hypoTraceSliderFill" style="position:absolute;top:50%;height:4px;background:#f97316;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
-            <div id="hypoTraceSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+            <div id="hypoTraceWindowFill" style="position:absolute;top:50%;height:4px;background:#f97316;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+            <div id="hypoTraceWindowPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
             <input type="range" id="hypoTraceWindowStart" min="0" max="24" step="0.25" value="0"
               style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
               oninput="onHypoTraceWindowChange()">
@@ -1011,10 +1018,10 @@
         <!-- Time window slider -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
           <span style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Time Window</span>
-          <div id="correctionSliderWrap" style="position:relative;flex:1;min-width:180px;height:28px">
+          <div id="correctionWindowWrap" style="position:relative;flex:1;min-width:180px;height:28px">
             <div style="position:absolute;top:50%;left:0;right:0;height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;transform:translateY(-50%)"></div>
-            <div id="correctionSliderFill" style="position:absolute;top:50%;height:4px;background:#a855f7;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
-            <div id="correctionSliderPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
+            <div id="correctionWindowFill" style="position:absolute;top:50%;height:4px;background:#a855f7;border-radius:2px;transform:translateY(-50%);pointer-events:none"></div>
+            <div id="correctionWindowPan" style="position:absolute;top:0;height:100%;background:transparent;cursor:grab;z-index:2;pointer-events:auto" title="Drag to shift window"></div>
             <input type="range" id="correctionWindowStart" min="0" max="24" step="0.25" value="0"
               style="position:absolute;width:100%;top:50%;transform:translateY(-50%);margin:0;appearance:none;-webkit-appearance:none;background:transparent;height:20px;cursor:pointer;pointer-events:none;z-index:3"
               oninput="onCorrectionWindowChange()">
@@ -1207,6 +1214,10 @@ let lastAnalysisText = '';
 let currentProvider = 'anthropic';
 // Zoom/pan state
 let viewMin = null, viewMax = null;
+let exclusionZones = []; // [{from: ms, to: ms}, ...]
+function isExcluded(t) {
+  return exclusionZones.some(z => t >= z.from && t <= z.to);
+}
 let isPanning = false, panStartX = 0, panStartMin = 0, panStartMax = 0;
 
 // Global pan-end handlers — registered once so they always reference the live canvas by ID
@@ -1580,13 +1591,71 @@ function applyFilter() {
   if (!dataLoaded) return;
   const from = new Date(document.getElementById('dateFrom').value + 'T00:00:00');
   const to = new Date(document.getElementById('dateTo').value + 'T23:59:59');
-  filteredCGM = rawCGM.filter(r => r.ts >= from && r.ts <= to);
-  filteredBasal = rawBasal.filter(r => r.ts >= from && r.ts <= to);
-  filteredBolus = rawBolus.filter(r => r.ts >= from && r.ts <= to);
-  viewMin = null; viewMax = null; // reset zoom to full filtered range
+  // Apply date range then exclusion zones
+  filteredCGM   = rawCGM.filter(r => r.ts >= from && r.ts <= to && !isExcluded(r.ts.getTime()));
+  filteredBasal = rawBasal.filter(r => r.ts >= from && r.ts <= to && !isExcluded(r.ts.getTime()));
+  filteredBolus = rawBolus.filter(r => r.ts >= from && r.ts <= to && !isExcluded(r.ts.getTime()));
+  viewMin = null; viewMax = null;
   renderChart();
   updateStats();
   updateNavButtons();
+  updateExclusionOverlay();
+  updateExclusionUI();
+}
+
+function updateExclusionUI() {
+  const grp = document.getElementById('exclusionGroup');
+  const cnt = document.getElementById('exclusionCount');
+  if (!grp || !cnt) return;
+  grp.style.display = exclusionZones.length > 0 ? 'flex' : 'none';
+  cnt.textContent = exclusionZones.length;
+}
+
+function clearExclusions() {
+  exclusionZones = [];
+  applyFilter();
+}
+
+function updateExclusionOverlay() {
+  const ov = document.getElementById('exclusionOverlay');
+  if (!ov || !mainChart) return;
+  const xScale = mainChart.scales['x'];
+  if (!xScale) return;
+  const bcr = ov.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  ov.style.width  = bcr.width  + 'px';
+  ov.style.height = bcr.height + 'px';
+  ov.width  = Math.round(bcr.width  * dpr);
+  ov.height = Math.round(bcr.height * dpr);
+  const oc = ov.getContext('2d');
+  oc.clearRect(0, 0, ov.width, ov.height);
+  if (exclusionZones.length === 0) return;
+  oc.save();
+  oc.scale(dpr, dpr);
+  for (const z of exclusionZones) {
+    const x0 = xScale.getPixelForValue(z.from);
+    const x1 = xScale.getPixelForValue(z.to);
+    const left  = Math.max(xScale.left,  Math.min(x0, x1));
+    const right = Math.min(xScale.right, Math.max(x0, x1));
+    if (right <= left) continue;
+    oc.fillStyle = 'rgba(239,68,68,0.15)';
+    oc.fillRect(left, xScale.top, right - left, xScale.bottom - xScale.top);
+    oc.strokeStyle = 'rgba(239,68,68,0.5)';
+    oc.lineWidth = 1;
+    oc.setLineDash([4, 3]);
+    oc.beginPath(); oc.moveTo(left,  xScale.top); oc.lineTo(left,  xScale.bottom); oc.stroke();
+    oc.beginPath(); oc.moveTo(right, xScale.top); oc.lineTo(right, xScale.bottom); oc.stroke();
+    oc.setLineDash([]);
+    // Label
+    const w = right - left;
+    if (w > 30) {
+      oc.fillStyle = 'rgba(239,68,68,0.75)';
+      oc.font = '10px DM Mono, monospace';
+      oc.textAlign = 'center';
+      oc.fillText('excluded', left + w / 2, xScale.top + 12);
+    }
+  }
+  oc.restore();
 }
 
 function updateNavButtons() {
@@ -1766,10 +1835,11 @@ function applyChartView(newMin, newMax, fromPreset = false) {
 
   mainChart.update('none');
   updateStats();
+  updateExclusionOverlay();
 }
 
 function setupZoomPan(canvas) {
-  canvas.style.cursor = 'crosshair';
+  canvas.style.cursor = 'grab';
 
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -1910,7 +1980,7 @@ function renderChart() {
   }));
 
   if (mainChart) mainChart.destroy();
-  container.innerHTML = '<div style="position:relative"><canvas id="mainCanvas"></canvas><canvas id="mainCrosshair" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas></div>';
+  container.innerHTML = '<div style="position:relative"><canvas id="mainCanvas"></canvas><canvas id="mainCrosshair" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas><canvas id="exclusionOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas></div>';
   const ctx = document.getElementById('mainCanvas').getContext('2d');
 
   // Plugin: bolus flags
@@ -2087,9 +2157,122 @@ function renderChart() {
   // Setup pan/zoom on the canvas
   setupZoomPan(document.getElementById('mainCanvas'));
 
+  // Draw any existing exclusion zones on the new overlay
+  updateExclusionOverlay();
+
   // ── Custom crosshair via overlay canvas (no chart redraws needed) ─────────────
   const mainTooltipEl = document.getElementById('mainChartTooltip');
   const mainCanvas = document.getElementById('mainCanvas');
+
+  // ── Shift+drag to mark exclusion zones ────────────────────────────────────────
+  let exclDragging = false, exclStartMs = null, exclCurMs = null;
+
+  mainCanvas.addEventListener('mousedown', (e) => {
+    if (!e.shiftKey || !mainChart) return;
+    e.stopImmediatePropagation(); // prevent pan
+    const xScale = mainChart.scales['x'];
+    const rect = mainCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    if (mouseX < xScale.left || mouseX > xScale.right) return;
+    exclDragging = true;
+    exclStartMs  = xScale.getValueForPixel(mouseX);
+    exclCurMs    = exclStartMs;
+    mainCanvas.style.cursor = 'crosshair';
+    e.preventDefault();
+  }, true); // capture phase so it fires before pan handler
+
+  window.addEventListener('mousemove', (e) => {
+    if (!exclDragging || !mainChart) return;
+    const xScale = mainChart.scales['x'];
+    const rect = mainCanvas.getBoundingClientRect();
+    const mouseX = Math.max(rect.left + xScale.left, Math.min(rect.left + xScale.right, e.clientX)) - rect.left;
+    exclCurMs = xScale.getValueForPixel(mouseX);
+    // Draw live preview on exclusion overlay
+    const ov = document.getElementById('exclusionOverlay');
+    if (!ov) return;
+    const dpr = window.devicePixelRatio || 1;
+    ov.style.width  = rect.width  + 'px';
+    ov.style.height = rect.height + 'px';
+    ov.width  = Math.round(rect.width  * dpr);
+    ov.height = Math.round(rect.height * dpr);
+    const oc = ov.getContext('2d');
+    oc.clearRect(0, 0, ov.width, ov.height);
+    oc.save(); oc.scale(dpr, dpr);
+    // Draw committed zones
+    for (const z of exclusionZones) {
+      const x0 = Math.max(xScale.left, Math.min(xScale.right, xScale.getPixelForValue(z.from)));
+      const x1 = Math.max(xScale.left, Math.min(xScale.right, xScale.getPixelForValue(z.to)));
+      const left = Math.min(x0, x1), right = Math.max(x0, x1);
+      oc.fillStyle = 'rgba(239,68,68,0.15)';
+      oc.fillRect(left, xScale.top, right - left, xScale.bottom - xScale.top);
+      oc.strokeStyle = 'rgba(239,68,68,0.5)'; oc.lineWidth = 1; oc.setLineDash([4,3]);
+      oc.beginPath(); oc.moveTo(left, xScale.top); oc.lineTo(left, xScale.bottom); oc.stroke();
+      oc.beginPath(); oc.moveTo(right, xScale.top); oc.lineTo(right, xScale.bottom); oc.stroke();
+      oc.setLineDash([]);
+    }
+    // Draw live drag zone
+    const px0 = xScale.getPixelForValue(exclStartMs);
+    const px1 = mouseX;
+    const left = Math.min(px0, px1), right = Math.max(px0, px1);
+    oc.fillStyle = 'rgba(239,68,68,0.25)';
+    oc.fillRect(left, xScale.top, right - left, xScale.bottom - xScale.top);
+    oc.strokeStyle = 'rgba(239,68,68,0.8)'; oc.lineWidth = 1.5; oc.setLineDash([]);
+    oc.beginPath(); oc.moveTo(left, xScale.top); oc.lineTo(left, xScale.bottom); oc.stroke();
+    oc.beginPath(); oc.moveTo(right, xScale.top); oc.lineTo(right, xScale.bottom); oc.stroke();
+    oc.restore();
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (!exclDragging) return;
+    exclDragging = false;
+    mainCanvas.style.cursor = '';
+    if (exclStartMs === null || exclCurMs === null) return;
+    const from = Math.min(exclStartMs, exclCurMs);
+    const to   = Math.max(exclStartMs, exclCurMs);
+    if (to - from < 60000) { // ignore tiny drags (< 1 min)
+      updateExclusionOverlay();
+      return;
+    }
+    // Merge overlapping zones
+    exclusionZones.push({ from, to });
+    exclusionZones.sort((a, b) => a.from - b.from);
+    const merged = [exclusionZones[0]];
+    for (let i = 1; i < exclusionZones.length; i++) {
+      const last = merged[merged.length - 1];
+      if (exclusionZones[i].from <= last.to) last.to = Math.max(last.to, exclusionZones[i].to);
+      else merged.push(exclusionZones[i]);
+    }
+    exclusionZones = merged;
+    applyFilter();
+  });
+
+  // Cursor hint: show crosshair when Shift is held over the chart
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Shift' || exclDragging) return;
+    const mc = document.getElementById('mainCanvas');
+    if (mc) mc.style.cursor = 'crosshair';
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key !== 'Shift' || exclDragging) return;
+    const mc = document.getElementById('mainCanvas');
+    if (mc) mc.style.cursor = 'grab';
+  });
+
+  // Click (without drag) on existing zone to remove it
+  mainCanvas.addEventListener('click', (e) => {
+    if (!e.shiftKey || !mainChart) return;
+    if (exclCurMs !== null && Math.abs(exclCurMs - exclStartMs) > 5e8) return; // was a drag
+    const xScale = mainChart.scales['x'];
+    const rect = mainCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    if (mouseX < xScale.left || mouseX > xScale.right) return;
+    const clickMs = xScale.getValueForPixel(mouseX);
+    const idx = exclusionZones.findIndex(z => clickMs >= z.from && clickMs <= z.to);
+    if (idx >= 0) {
+      exclusionZones.splice(idx, 1);
+      applyFilter();
+    }
+  });
 
   function drawCrosshair(xPx) {
     const overlay = document.getElementById('mainCrosshair');
@@ -2301,9 +2484,9 @@ function updateStats() {
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
   const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
   const spanMs = vMax - vMin;
-  const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
-  const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
-  const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
+  const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
+  const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
 
   if (visCGM.length === 0) return;
 
@@ -2313,9 +2496,9 @@ function updateStats() {
   // Previous period (same span, immediately before)
   const pMin = vMin - spanMs;
   const pMax = vMin;
-  const prevCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax; });
-  const prevBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax; });
-  const prevBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax; });
+  const prevCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax && !isExcluded(t); });
+  const prevBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax && !isExcluded(t); });
+  const prevBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= pMin && t < pMax && !isExcluded(t); });
   const prev = prevCGM.length >= 12 ? computePeriodStats(prevCGM, prevBasal, prevBolus, spanMs) : null;
 
   // Helper: render a trend sub-label
@@ -2431,48 +2614,151 @@ function updateStats() {
   buildHypoTiming(visBolus);
 }
 
-// ─── Post-Prandial Glucose Trace (0–4 h) ─────────────────────────────────────
+// ─── Shared chart helpers ─────────────────────────────────────────────────────
+
+// Binary-search nearest CGM reading in a pre-sorted array.
+// Returns the glucose value if within tolMs, otherwise null.
+function makeCgmNear(cgmSorted) {
+  return function cgmNear(targetMs, tolMs = 600000) {
+    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
+      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
+      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1; else hi = mid - 1;
+    }
+    return best && bestDiff <= tolMs ? best.glc : null;
+  };
+}
+
+// Percentile of a pre-sorted array (linear interpolation).
+function pctile(sorted, p) {
+  if (!sorted.length) return null;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// Set up a canvas for DPR-aware drawing. Returns {ctx, W, H}.
+function setupCanvas(canvas, cssH) {
+  const dpr  = window.devicePixelRatio || 1;
+  const cssW = canvas.parentElement.getBoundingClientRect().width;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+  return { ctx, W: cssW, H: cssH };
+}
+
+// Generic dual-handle time-window slider update.
+// prefix: ID prefix used for Start/End inputs, Fill/Pan bar, Wrap, Label elements.
+// rebuild: optional callback to invoke after updating.
+function updateSliderWindow(prefix, rebuild) {
+  const inpS = document.getElementById(prefix + 'Start');
+  const inpE = document.getElementById(prefix + 'End');
+  if (!inpS || !inpE) return;
+  let lo = Math.min(parseFloat(inpS.value), parseFloat(inpE.value));
+  let hi = Math.max(parseFloat(inpS.value), parseFloat(inpE.value));
+  if (hi - lo < 0.5) {
+    if (parseFloat(inpS.value) <= parseFloat(inpE.value)) hi = lo + 0.5;
+    else lo = hi - 0.5;
+    inpS.value = lo; inpE.value = hi;
+  }
+  const fill = document.getElementById(prefix + 'Fill');
+  const pan  = document.getElementById(prefix + 'Pan');
+  const wrap = document.getElementById(prefix + 'Wrap');
+  if (fill && wrap) {
+    const thumbR = 8;
+    const trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
+    const scale  = (trackW - 2 * thumbR) / trackW;
+    const offset = thumbR / trackW * 100;
+    const leftPct  = offset + (lo / 24) * scale * 100;
+    const widthPct = ((hi - lo) / 24) * scale * 100;
+    fill.style.left = leftPct + '%'; fill.style.width = widthPct + '%';
+    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
+  }
+  const fmt = v => {
+    const h = Math.floor(v), m = Math.round((v - h) * 60);
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  };
+  const label = document.getElementById(prefix + 'Label');
+  if (label) label.textContent = fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
+  if (rebuild) rebuild();
+}
+
+// Compute per-timepoint median, IQR, mean and n from a traces array.
+function computeTraceStats(traces, STEPS) {
+  const colMedian = new Array(STEPS).fill(null);
+  const colP25    = new Array(STEPS).fill(null);
+  const colP75    = new Array(STEPS).fill(null);
+  const colMean   = new Array(STEPS).fill(null);
+  const colN      = new Array(STEPS).fill(0);
+  for (let i = 0; i < STEPS; i++) {
+    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
+    colN[i] = col.length;
+    if (col.length < 2) continue;
+    const s = [...col].sort((a, b) => a - b);
+    colMedian[i] = pctile(s, 50);
+    colP25[i]    = pctile(s, 25);
+    colP75[i]    = pctile(s, 75);
+    colMean[i]   = col.reduce((a, b) => a + b, 0) / col.length;
+  }
+  return { colMedian, colP25, colP75, colMean, colN };
+}
+
+// Draw IQR shaded band + border strokes + bold median line on ctx.
+// color: hex or CSS colour for the series (e.g. '#00d4b1').
+// fillAlpha: opacity for the IQR fill (default 0.18).
+function drawIQRAndMedian(ctx, colMedian, colP25, colP75, STEPS, STEP, toX, toY, color, fillAlpha = 0.18) {
+  const iqrBot = Array.from({length: STEPS}, (_, i) => colP25[i] !== null ? [toX(i*STEP), toY(colP25[i])] : null).filter(Boolean);
+  const iqrTop = Array.from({length: STEPS}, (_, i) => colP75[i] !== null ? [toX(i*STEP), toY(colP75[i])] : null).filter(Boolean);
+  if (iqrTop.length > 1 && iqrBot.length > 1) {
+    // Filled band
+    ctx.save();
+    ctx.globalAlpha = fillAlpha;
+    ctx.beginPath();
+    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
+    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
+    for (let i = iqrBot.length - 1; i >= 0; i--) ctx.lineTo(iqrBot[i][0], iqrBot[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    for (const pts of [iqrTop, iqrBot]) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (const [x, y] of pts) ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // Bold median line
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < STEPS; i++) {
+    if (colMedian[i] === null) { started = false; continue; }
+    const x = toX(i * STEP), y = toY(colMedian[i]);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3.5;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+
 let mealTraceVisCGM  = [];
 let mealTraceVisBolus = [];
 let hypoTimingVisBolus = [];
 
 function onMealWindowChange() {
-  const s = parseFloat(document.getElementById('mealWindowStart').value);
-  const e = parseFloat(document.getElementById('mealWindowEnd').value);
-  let start = Math.min(s, e), end = Math.max(s, e);
-  // Enforce minimum gap of 0.5 h
-  if (end - start < 0.5) {
-    if (s <= e) end = start + 0.5;
-    else start = end - 0.5;
-    document.getElementById('mealWindowStart').value = start;
-    document.getElementById('mealWindowEnd').value   = end;
-  }
-  // Update fill bar + pan overlay
-  // Browser range thumbs are offset by ~half-thumb-width (8px for 16px thumb).
-  // We replicate the browser's own formula: pos% = (val - min) / (max - min),
-  // then correct for thumb half-width so the bar edges align with thumb centres.
-  const fill = document.getElementById('mealSliderFill');
-  const pan  = document.getElementById('mealSliderPan');
-  const wrap = document.getElementById('mealSliderWrap');
-  if (fill && wrap) {
-    const thumbR = 8; // half of 16px thumb
-    const trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
-    const scale  = (trackW - 2 * thumbR) / trackW; // usable fraction
-    const offset = thumbR / trackW * 100;           // % offset for left edge
-    const leftPct  = offset + (start / 24) * scale * 100;
-    const widthPct = ((end - start) / 24) * scale * 100;
-    fill.style.left  = leftPct + '%';
-    fill.style.width = widthPct + '%';
-    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
-  }
-  // Update label
-  const fmt = v => {
-    const h = Math.floor(v);
-    const m = Math.round((v - h) * 60);
-    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
-  };
-  document.getElementById('mealWindowLabel').textContent = fmt(start) + ' – ' + (end >= 24 ? '24:00' : fmt(end));
-  if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus);
+  updateSliderWindow('mealWindow', () => { if (mealTraceVisCGM.length) buildMealTrace(mealTraceVisCGM, mealTraceVisBolus); });
 }
 
 function buildMealTrace(visCGM, visBolus) {
@@ -2490,17 +2776,7 @@ function buildMealTrace(visCGM, visBolus) {
 
   // CGM sorted for binary search
   const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
-  function cgmNear(targetMs, tolMs = 600000) {
-    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
-      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
-      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
-      else hi = mid - 1;
-    }
-    return best && bestDiff <= tolMs ? best.glc : null;
-  }
+  const cgmNear = makeCgmNear(cgmSorted);
 
   // Filter meals within daily time window
   const meals = visBolus.filter(b => {
@@ -2533,18 +2809,7 @@ function buildMealTrace(visCGM, visBolus) {
   document.getElementById('mealTraceNLabel').textContent = `${traces.length} meal${traces.length !== 1 ? 's' : ''} in window`;
 
   // ── Canvas setup ─────────────────────────────────────────────────────────────
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 320;
-  canvas.width  = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const W = cssW, H = cssH;
-  ctx.clearRect(0, 0, W, H);
+  const { ctx, W, H } = setupCanvas(canvas, 320);
 
   const PAD = { top: 20, right: 20, bottom: 32, left: 56 };
   const plotW = W - PAD.left - PAD.right;
@@ -2646,62 +2911,8 @@ function buildMealTrace(visCGM, visBolus) {
   }
 
   // Compute per-timepoint stats: median + IQR
-  const colMedian = new Array(STEPS).fill(null);
-  const colP25    = new Array(STEPS).fill(null);
-  const colP75    = new Array(STEPS).fill(null);
-  function pctile(sorted, p) {
-    if (!sorted.length) return null;
-    const idx = (p / 100) * (sorted.length - 1);
-    const lo = Math.floor(idx), hi = Math.ceil(idx);
-    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-  }
-  for (let i = 0; i < STEPS; i++) {
-    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
-    if (col.length < 2) continue;
-    const s = [...col].sort((a,b) => a-b);
-    colMedian[i] = pctile(s, 50);
-    colP25[i]    = pctile(s, 25);
-    colP75[i]    = pctile(s, 75);
-  }
-
-  // IQR shaded band — more prominent
-  const iqrPts = Array.from({length: STEPS}, (_, i) => colP25[i] !== null ? [toX(i * STEP), toY(colP25[i])] : null).filter(Boolean);
-  const iqrTop = Array.from({length: STEPS}, (_, i) => colP75[i] !== null ? [toX(i * STEP), toY(colP75[i])] : null).filter(Boolean);
-  if (iqrTop.length > 1 && iqrPts.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
-    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
-    for (let i = iqrPts.length - 1; i >= 0; i--) ctx.lineTo(iqrPts[i][0], iqrPts[i][1]);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(0,212,177,0.22)';
-    ctx.fill();
-    // IQR border lines for extra definition
-    ctx.beginPath();
-    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
-    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
-    ctx.strokeStyle = 'rgba(0,212,177,0.35)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(iqrPts[0][0], iqrPts[0][1]);
-    for (const [x, y] of iqrPts) ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  // Median trace — bold teal, heavier weight
-  ctx.beginPath();
-  let mStarted = false;
-  for (let i = 0; i < STEPS; i++) {
-    if (colMedian[i] === null) { mStarted = false; continue; }
-    const x = toX(i * STEP), y = toY(colMedian[i]);
-    if (!mStarted) { ctx.moveTo(x, y); mStarted = true; } else ctx.lineTo(x, y);
-  }
-  ctx.strokeStyle = '#00d4b1';
-  ctx.lineWidth = 3.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.stroke();
-  ctx.lineCap = 'butt';
+  const { colMedian, colP25, colP75, colMean, colN } = computeTraceStats(traces, STEPS);
+  drawIQRAndMedian(ctx, colMedian, colP25, colP75, STEPS, STEP, toX, toY, '#00d4b1');
 
   // ── Hypo Tx timing overlay ───────────────────────────────────────────────────
   // For each meal in the window, find subsequent hypo treatments and bin by
@@ -2805,14 +3016,6 @@ function buildMealTrace(visCGM, visBolus) {
   }
 
   // Store geometry + per-timepoint data for tooltip
-  // Also compute per-timepoint n and mean of individual traces
-  const colN    = new Array(STEPS).fill(0);
-  const colMean = new Array(STEPS).fill(null);
-  for (let i = 0; i < STEPS; i++) {
-    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
-    colN[i] = col.length;
-    colMean[i] = col.length ? col.reduce((s,v) => s+v, 0) / col.length : null;
-  }
   canvas._mealTrace = { PAD, plotW, plotH, toX, toY, STEP, STEPS,
     colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
 
@@ -2823,28 +3026,7 @@ let hypoTraceVisCGM   = [];
 let hypoTraceVisBolus = [];
 
 function onHypoTraceWindowChange() {
-  const s = parseFloat(document.getElementById('hypoTraceWindowStart').value);
-  const e = parseFloat(document.getElementById('hypoTraceWindowEnd').value);
-  let lo = Math.min(s, e), hi = Math.max(s, e);
-  if (hi - lo < 0.5) { if (s <= e) hi = lo + 0.5; else lo = hi - 0.5;
-    document.getElementById('hypoTraceWindowStart').value = lo;
-    document.getElementById('hypoTraceWindowEnd').value   = hi; }
-  const fill = document.getElementById('hypoTraceSliderFill');
-  const pan  = document.getElementById('hypoTraceSliderPan');
-  const wrap = document.getElementById('hypoTraceSliderWrap');
-  if (fill && wrap) {
-    const thumbR = 8, trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
-    const scale = (trackW - 2*thumbR) / trackW, offset = thumbR / trackW * 100;
-    const leftPct  = offset + (lo / 24) * scale * 100;
-    const widthPct = ((hi - lo) / 24) * scale * 100;
-    fill.style.left = leftPct + '%'; fill.style.width = widthPct + '%';
-    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
-  }
-  const fmt = v => { const h=Math.floor(v),m=Math.round((v-h)*60);
-    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); };
-  document.getElementById('hypoTraceWindowLabel').textContent =
-    fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
-  if (hypoTraceVisCGM.length) buildHypoTrace(hypoTraceVisCGM, hypoTraceVisBolus);
+  updateSliderWindow('hypoTraceWindow', () => { if (hypoTraceVisCGM.length) buildHypoTrace(hypoTraceVisCGM, hypoTraceVisBolus); });
 }
 
 function buildHypoTrace(visCGM, visBolus) {
@@ -2861,17 +3043,7 @@ function buildHypoTrace(visCGM, visBolus) {
   const winHi  = Math.max(startH, endH);
 
   const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
-  function cgmNear(targetMs, tolMs = 600000) {
-    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
-      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
-      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
-      else hi = mid - 1;
-    }
-    return best && bestDiff <= tolMs ? best.glc : null;
-  }
+  const cgmNear = makeCgmNear(cgmSorted);
 
   // Identify hypo treatment events within the selected time window
   const hypos = visBolus.filter(b => {
@@ -2900,22 +3072,15 @@ function buildHypoTrace(visCGM, visBolus) {
   document.getElementById('hypoTraceNLabel').textContent =
     `${traces.length} event${traces.length !== 1 ? 's' : ''}`;
 
-  section.style.display = traces.length > 0 ? 'block' : 'none';
-  if (traces.length === 0) return;
+  section.style.display = 'block';
+  const { ctx, W, H } = setupCanvas(canvas, 260);
 
-  // ── Canvas setup ─────────────────────────────────────────────────────────────
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 260;
-  canvas.width  = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const W = cssW, H = cssH;
-  ctx.clearRect(0, 0, W, H);
+  if (traces.length === 0) {
+    ctx.fillStyle = 'rgba(100,116,139,0.5)';
+    ctx.font = '11px DM Mono, monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No hypoglycaemia treatments in selected time window', W / 2, H / 2);
+    return;
+  }
 
   const PAD = { top: 20, right: 20, bottom: 32, left: 56 };
   const plotW = W - PAD.left - PAD.right;
@@ -3005,62 +3170,8 @@ function buildHypoTrace(visCGM, visBolus) {
     ctx.stroke();
   }
 
-  // Per-timepoint stats
-  const colMedian = new Array(STEPS).fill(null);
-  const colP25    = new Array(STEPS).fill(null);
-  const colP75    = new Array(STEPS).fill(null);
-  const colN      = new Array(STEPS).fill(0);
-  const colMean   = new Array(STEPS).fill(null);
-  function pctile(sorted, p) {
-    if (!sorted.length) return null;
-    const idx = (p / 100) * (sorted.length - 1);
-    const lo = Math.floor(idx), hi = Math.ceil(idx);
-    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-  }
-  for (let i = 0; i < STEPS; i++) {
-    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
-    colN[i] = col.length;
-    if (col.length < 2) continue;
-    const s = [...col].sort((a,b) => a - b);
-    colMedian[i] = pctile(s, 50);
-    colP25[i]    = pctile(s, 25);
-    colP75[i]    = pctile(s, 75);
-    colMean[i]   = col.reduce((a,b) => a + b, 0) / col.length;
-  }
-
-  // IQR band (orange)
-  const iqrPts = Array.from({length: STEPS}, (_, i) => colP25[i] !== null ? [toX(i*STEP), toY(colP25[i])] : null).filter(Boolean);
-  const iqrTop = Array.from({length: STEPS}, (_, i) => colP75[i] !== null ? [toX(i*STEP), toY(colP75[i])] : null).filter(Boolean);
-  if (iqrTop.length > 1 && iqrPts.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
-    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
-    for (let i = iqrPts.length - 1; i >= 0; i--) ctx.lineTo(iqrPts[i][0], iqrPts[i][1]);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(249,115,22,0.18)';
-    ctx.fill();
-    ctx.beginPath(); ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
-    for (const [x, y] of iqrTop) ctx.lineTo(x, y);
-    ctx.strokeStyle = 'rgba(249,115,22,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(iqrPts[0][0], iqrPts[0][1]);
-    for (const [x, y] of iqrPts) ctx.lineTo(x, y);
-    ctx.stroke();
-  }
-
-  // Median trace (bold orange)
-  ctx.beginPath();
-  let mStarted = false;
-  for (let i = 0; i < STEPS; i++) {
-    if (colMedian[i] === null) { mStarted = false; continue; }
-    const x = toX(i * STEP), y = toY(colMedian[i]);
-    if (!mStarted) { ctx.moveTo(x, y); mStarted = true; } else ctx.lineTo(x, y);
-  }
-  ctx.strokeStyle = '#f97316';
-  ctx.lineWidth = 3.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.stroke();
-  ctx.lineCap = 'butt';
+  const { colMedian, colP25, colP75, colMean, colN } = computeTraceStats(traces, STEPS);
+  drawIQRAndMedian(ctx, colMedian, colP25, colP75, STEPS, STEP, toX, toY, '#f97316');
 
   // Legend
   ctx.fillStyle = 'rgba(249,115,22,0.8)';
@@ -3081,36 +3192,7 @@ let correctionTraceVisCGM  = [];
 let correctionTraceVisBolus = [];
 
 function onCorrectionWindowChange() {
-  const s = parseFloat(document.getElementById('correctionWindowStart').value);
-  const e = parseFloat(document.getElementById('correctionWindowEnd').value);
-  let lo = Math.min(s, e), hi = Math.max(s, e);
-  if (hi - lo < 0.5) {
-    if (s <= e) hi = lo + 0.5; else lo = hi - 0.5;
-    document.getElementById('correctionWindowStart').value = lo;
-    document.getElementById('correctionWindowEnd').value   = hi;
-  }
-  const fill = document.getElementById('correctionSliderFill');
-  const pan  = document.getElementById('correctionSliderPan');
-  const wrap = document.getElementById('correctionSliderWrap');
-  if (fill && wrap) {
-    const thumbR = 8;
-    const trackW = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
-    const scale  = (trackW - 2 * thumbR) / trackW;
-    const offset = thumbR / trackW * 100;
-    const leftPct  = offset + (lo / 24) * scale * 100;
-    const widthPct = ((hi - lo) / 24) * scale * 100;
-    fill.style.left  = leftPct + '%';
-    fill.style.width = widthPct + '%';
-    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
-  }
-  const fmt = v => {
-    const h = Math.floor(v), m = Math.round((v - h) * 60);
-    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
-  };
-  document.getElementById('correctionWindowLabel').textContent =
-    fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
-  if (correctionTraceVisCGM.length)
-    buildCorrectionTrace(correctionTraceVisCGM, correctionTraceVisBolus);
+  updateSliderWindow('correctionWindow', () => { if (correctionTraceVisCGM.length) buildCorrectionTrace(correctionTraceVisCGM, correctionTraceVisBolus); });
 }
 
 function buildCorrectionTrace(visCGM, visBolus) {
@@ -3127,17 +3209,7 @@ function buildCorrectionTrace(visCGM, visBolus) {
   const winHi  = Math.max(startH, endH);
 
   const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
-  function cgmNear(targetMs, tolMs = 600000) {
-    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
-      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
-      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
-      else hi = mid - 1;
-    }
-    return best && bestDiff <= tolMs ? best.glc : null;
-  }
+  const cgmNear = makeCgmNear(cgmSorted);
 
   // Correction boluses: insulin-only, no carbs, not a hypo treatment (0.05 U)
   const corrections = visBolus.filter(b => {
@@ -3168,20 +3240,15 @@ function buildCorrectionTrace(visCGM, visBolus) {
   document.getElementById('correctionTraceNLabel').textContent =
     `${traces.length} correction${traces.length !== 1 ? 's' : ''} in window`;
 
-  section.style.display = traces.length > 0 ? 'block' : 'none';
-  if (traces.length === 0) return;
+  section.style.display = 'block';
+  const { ctx, W, H } = setupCanvas(canvas, 260);
 
-  // ── Canvas setup ─────────────────────────────────────────────────────────────
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 260;
-  canvas.width  = cssW * dpr; canvas.height = cssH * dpr;
-  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const W = cssW, H = cssH;
-  ctx.clearRect(0, 0, W, H);
+  if (traces.length === 0) {
+    ctx.fillStyle = 'rgba(100,116,139,0.5)';
+    ctx.font = '11px DM Mono, monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No correction boluses in selected time window', W / 2, H / 2);
+    return;
+  }
 
   const PAD = { top: 20, right: 20, bottom: 32, left: 56 };
   const plotW = W - PAD.left - PAD.right;
@@ -3260,54 +3327,9 @@ function buildCorrectionTrace(visCGM, visBolus) {
   }
 
   // Per-timepoint stats
-  function pctile(sorted, p) {
-    if (!sorted.length) return null;
-    const idx = (p / 100) * (sorted.length - 1);
-    const lo = Math.floor(idx), hi = Math.ceil(idx);
-    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-  }
-  const colMedian = new Array(STEPS).fill(null);
-  const colP25    = new Array(STEPS).fill(null);
-  const colP75    = new Array(STEPS).fill(null);
-  const colN      = new Array(STEPS).fill(0);
-  const colMean   = new Array(STEPS).fill(null);
-  for (let i = 0; i < STEPS; i++) {
-    const col = traces.map(tr => tr.pts[i]).filter(v => v !== null);
-    colN[i] = col.length;
-    if (col.length < 2) continue;
-    const s = [...col].sort((a,b) => a-b);
-    colMedian[i] = pctile(s, 50);
-    colP25[i]    = pctile(s, 25);
-    colP75[i]    = pctile(s, 75);
-    colMean[i]   = col.reduce((a,b) => a+b, 0) / col.length;
-  }
 
-  // IQR band (purple)
-  const iqrPts = Array.from({length:STEPS},(_,i)=>colP25[i]!==null?[toX(i*STEP),toY(colP25[i])]:null).filter(Boolean);
-  const iqrTop = Array.from({length:STEPS},(_,i)=>colP75[i]!==null?[toX(i*STEP),toY(colP75[i])]:null).filter(Boolean);
-  if (iqrTop.length > 1 && iqrPts.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(iqrTop[0][0], iqrTop[0][1]);
-    for (const [x,y] of iqrTop) ctx.lineTo(x,y);
-    for (let i=iqrPts.length-1;i>=0;i--) ctx.lineTo(iqrPts[i][0],iqrPts[i][1]);
-    ctx.closePath(); ctx.fillStyle='rgba(168,85,247,0.18)'; ctx.fill();
-    ctx.beginPath(); ctx.moveTo(iqrTop[0][0],iqrTop[0][1]);
-    for (const [x,y] of iqrTop) ctx.lineTo(x,y);
-    ctx.strokeStyle='rgba(168,85,247,0.35)'; ctx.lineWidth=1; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(iqrPts[0][0],iqrPts[0][1]);
-    for (const [x,y] of iqrPts) ctx.lineTo(x,y); ctx.stroke();
-  }
-
-  // Median trace (bold purple)
-  ctx.beginPath();
-  let mStarted = false;
-  for (let i = 0; i < STEPS; i++) {
-    if (colMedian[i] === null) { mStarted = false; continue; }
-    const x = toX(i * STEP), y = toY(colMedian[i]);
-    if (!mStarted) { ctx.moveTo(x, y); mStarted = true; } else ctx.lineTo(x, y);
-  }
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 3.5;
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+  const { colMedian, colP25, colP75, colMean, colN } = computeTraceStats(traces, STEPS);
+  drawIQRAndMedian(ctx, colMedian, colP25, colP75, STEPS, STEP, toX, toY, '#a855f7');
 
   // Legend
   ctx.fillStyle = 'rgba(168,85,247,0.8)'; ctx.font = '9px DM Mono, monospace'; ctx.textAlign = 'left';
@@ -3321,36 +3343,7 @@ function buildCorrectionTrace(visCGM, visBolus) {
     colMedian, colP25, colP75, colMean, colN, traces, yMin, yMax };
 }
 function onHypoTimingTODChange() {
-  const s = parseFloat(document.getElementById('hypoTimingWindowStart').value);
-  const e = parseFloat(document.getElementById('hypoTimingWindowEnd').value);
-  let lo = Math.min(s, e), hi = Math.max(s, e);
-  if (hi - lo < 0.5) {
-    if (s <= e) hi = lo + 0.5; else lo = hi - 0.5;
-    document.getElementById('hypoTimingWindowStart').value = lo;
-    document.getElementById('hypoTimingWindowEnd').value   = hi;
-  }
-  // Update fill + pan bar (thumb-corrected, matching meal window pattern)
-  const fill = document.getElementById('hypoTimingSliderFill');
-  const pan  = document.getElementById('hypoTimingSliderPan');
-  const wrap = document.getElementById('hypoTimingSliderWrap');
-  if (fill && wrap) {
-    const thumbR  = 8;
-    const trackW  = wrap.getBoundingClientRect().width || wrap.offsetWidth || 1;
-    const scale   = (trackW - 2 * thumbR) / trackW;
-    const offset  = thumbR / trackW * 100;
-    const leftPct  = offset + (lo / 24) * scale * 100;
-    const widthPct = ((hi - lo) / 24) * scale * 100;
-    fill.style.left  = leftPct + '%';
-    fill.style.width = widthPct + '%';
-    if (pan) { pan.style.left = leftPct + '%'; pan.style.width = widthPct + '%'; }
-  }
-  const fmt = v => {
-    const h = Math.floor(v), m = Math.round((v - h) * 60);
-    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
-  };
-  document.getElementById('hypoTimingWindowLabel').textContent =
-    fmt(lo) + ' – ' + (hi >= 24 ? '24:00' : fmt(hi));
-  if (hypoTimingVisBolus.length) buildHypoTiming(hypoTimingVisBolus);
+  updateSliderWindow('hypoTimingWindow', () => { if (hypoTimingVisBolus.length) buildHypoTiming(hypoTimingVisBolus); });
 }
 
 function buildHypoTiming(visBolus) {
@@ -3379,7 +3372,15 @@ function buildHypoTiming(visBolus) {
   }).sort((a, b) => a.ts - b.ts);
   const boluses = visBolus.filter(b => !isHypo(b)).sort((a, b) => a.ts - b.ts);
 
-  if (hypos.length === 0) { section.style.display = 'none'; return; }
+  if (hypos.length === 0) {
+    section.style.display = 'block';
+    document.getElementById('hypoTimingNLabel').textContent = '0 events in window';
+    const { ctx, W, H } = setupCanvas(canvas, 200);
+    ctx.fillStyle = 'rgba(100,116,139,0.5)';
+    ctx.font = '11px DM Mono, monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No hypoglycaemia treatments in selected time window', W / 2, H / 2);
+    return;
+  }
   section.style.display = 'block';
 
   document.getElementById('hypoTimingNLabel').textContent =
@@ -3414,18 +3415,7 @@ function buildHypoTiming(visBolus) {
   }
 
   // ── Canvas setup ─────────────────────────────────────────────────────────────
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 200;
-  canvas.width  = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const W = cssW, H = cssH;
-  ctx.clearRect(0, 0, W, H);
+  const { ctx, W, H } = setupCanvas(canvas, 200);
 
   const PAD = { top: 16, right: 20, bottom: 38, left: 44 };
   const plotW = W - PAD.left - PAD.right;
@@ -3532,10 +3522,10 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   if (!visCGM) {
     const vMin = viewMin ?? rawCGM[0].ts.getTime();
     const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
-    visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
-    visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+    visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
+    visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
     // Recompute ISF from visible data
-    visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+    visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
     const days2 = Math.max((vMax - vMin) / 86400000, 1/24);
     const basalU = visBasal.reduce((s,b) => s + (b.units||0), 0);
     const bolusU = visBolus.reduce((s,b) => s + (b.insulin||0), 0);
@@ -3611,20 +3601,8 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   if (!canvas) return;
   // DPI-aware sizing — use getBoundingClientRect so the stored geometry always
   // matches what the mousemove handler reads from the same API call.
-  const dpr = window.devicePixelRatio || 1;
-  const bcr = canvas.getBoundingClientRect();
-  // Force 100% width first so bcr reflects the true available width
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 320;
-  canvas.width = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  const { ctx, W, H } = setupCanvas(canvas, 320);
 
-  const W = cssW, H = cssH;
   const PAD = { top: 14, right: 44, bottom: 28, left: 52 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
@@ -3639,7 +3617,6 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   const toY = (v) => PAD.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
 
   // ── Background & grid ───────────────────────────────────────────────────────
-  ctx.clearRect(0, 0, W, H);
 
   // Target band
   ctx.fillStyle = isLight() ? 'rgba(16,185,129,0.10)' : 'rgba(16,185,129,0.06)';
@@ -3928,12 +3905,12 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
       });
 
       const adjCorr = new Array(24).fill(0);
-      for (let h = 1; h <= 22; h++) {
+      for (let h = 0; h < 24; h++) {
         if (smRocMed[h] == null) continue;
         const roc = smRocMed[h]; // already in mmol/L/h
         const half = roc / isfMmol / 2;
-        adjCorr[h - 1] += half;
-        adjCorr[h - 2 >= 0 ? h - 2 : 0] += half;
+        adjCorr[(h - 1 + 24) % 24] += half;  // circular: hour 0 → hour 23
+        adjCorr[(h - 2 + 24) % 24] += half;  // circular: hour 1 → hour 23, hour 0 → hour 22
       }
 
       // Target glucose offset: (avgGlc - targetGlc) / ISF units spread evenly
@@ -4007,7 +3984,7 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
     const vMinH = viewMin ?? rawCGM[0].ts.getTime();
     const vMaxH = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
     const spanDays = Math.max((vMaxH - vMinH) / 86400000, 1 / 24);
-    const visBolusH = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMinH && t <= vMaxH; });
+    const visBolusH = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMinH && t <= vMaxH && !isExcluded(t); });
     const hypoByHour = new Array(24).fill(0);
     visBolusH.forEach(b => {
       if (b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001)
@@ -4092,7 +4069,7 @@ function buildTOD(visCGM, visBasal, isfMmol, visBolus) {
   // Build companion bolus/carbs/hypo plot
   const vMin2 = viewMin ?? rawCGM[0].ts.getTime();
   const vMax2 = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
-  const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin2 && t <= vMax2; });
+  const visBolus2 = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin2 && t <= vMax2 && !isExcluded(t); });
   buildTODDeriv(hourlyData, smMedian, smMean, rawMedian);
   buildBolusHOD(visBolus2, vMin2, vMax2);
   buildMealResponse(visCGM, visBolus2);
@@ -4120,7 +4097,7 @@ function buildTODDeriv(hourlyData, smMedian, smMean, rawMedian) {
   const derivByHour = Array.from({length: 24}, () => []);
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
   const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
-  const visCGM = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visCGM = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
   const MAX_GAP_MS = CGM_GAP_MS;
   for (let i = 1; i < visCGM.length - 1; i++) {
     const prev = visCGM[i - 1], curr = visCGM[i], next = visCGM[i + 1];
@@ -4136,12 +4113,7 @@ function buildTODDeriv(hourlyData, smMedian, smMean, rawMedian) {
   section.style.display = hasData ? 'block' : 'none';
   if (!hasData) return;
 
-  function pctile(sorted, p) {
-    if (!sorted.length) return null;
-    const idx = (p / 100) * (sorted.length - 1);
-    const lo = Math.floor(idx), hi = Math.ceil(idx);
-    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-  }
+
   const rawDerivStats = derivByHour.map(vals => {
     if (vals.length < 2) return null;
     const s = [...vals].sort((a, b) => a - b);
@@ -4197,18 +4169,7 @@ function buildTODDeriv(hourlyData, smMedian, smMean, rawMedian) {
   [smDMed, smDMean, smDP5, smDP95, smDP25, smDP75].forEach(a => { a[24] = a[23]; });
 
   // ── Canvas setup ─────────────────────────────────────────────────────────────
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 160;
-  canvas.width  = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const W = cssW, H = cssH;
-  ctx.clearRect(0, 0, W, H);
+  const { ctx, W, H } = setupCanvas(canvas, 160);
 
   const PAD = { top: 14, right: 44, bottom: 28, left: 52 };
   const plotW = W - PAD.left - PAD.right;
@@ -4377,18 +4338,8 @@ function buildBolusHOD(visBolus, vMin, vMax) {
   });
 
   // DPI-aware sizing — use getBoundingClientRect so geometry matches mousemove reads
-  const dpr  = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 240;
-  canvas.width  = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  const { ctx, W, H } = setupCanvas(canvas, 240);
 
-  const W = cssW, H = cssH;
   const PAD = { top: 14, right: 90, bottom: 28, left: 52 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
@@ -4411,7 +4362,6 @@ function buildBolusHOD(visBolus, vMin, vMax) {
   const toYHypo  = v => PAD.top + plotH - (v / yMaxHypo)  * plotH;
 
   // ── Background ──────────────────────────────────────────────────────────────
-  ctx.clearRect(0, 0, W, H);
 
   // Horizontal grid lines (based on carbs axis)
   ctx.strokeStyle = 'rgba(31,45,69,0.7)';
@@ -4550,19 +4500,7 @@ function buildMealResponse(visCGM, visBolus) {
 
   // Sort CGM by time for binary search
   const cgmSorted = [...visCGM].sort((a, b) => a.ts - b.ts);
-
-  // Find the CGM value nearest to a target timestamp, within a tolerance window
-  function cgmNear(targetMs, tolMs = 600000) {
-    let lo = 0, hi = cgmSorted.length - 1, best = null, bestDiff = Infinity;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const diff = Math.abs(cgmSorted[mid].ts.getTime() - targetMs);
-      if (diff < bestDiff) { bestDiff = diff; best = cgmSorted[mid]; }
-      if (cgmSorted[mid].ts.getTime() < targetMs) lo = mid + 1;
-      else hi = mid - 1;
-    }
-    return best && bestDiff <= tolMs ? best.glc : null;
-  }
+  const cgmNear = makeCgmNear(cgmSorted);
 
   // Identify meals: boluses with carbs > 0 that are not hypo treatments
   const meals = visBolus.filter(b => (b.carbs || 0) > 0 && !(b.carbs === 0 && Math.abs(b.insulin - 0.05) < 0.001));
@@ -4610,18 +4548,8 @@ function buildMealResponse(visCGM, visBolus) {
 
 
   // ── Canvas ────────────────────────────────────────────────────────────────────
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = '100%';
-  const cssW = canvas.parentElement.getBoundingClientRect().width;
-  const cssH = 300;
-  canvas.width  = cssW * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  const { ctx, W, H } = setupCanvas(canvas, 300);
 
-  const W = cssW, H = cssH;
   const PAD = { top: 20, right: 20, bottom: 28, left: 58 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
@@ -4638,7 +4566,6 @@ function buildMealResponse(visCGM, visBolus) {
   const toX = h => PAD.left + (h / 24) * plotW;
   const toY = v => PAD.top + plotH * (1 - (v - yMin) / (yMax - yMin));
 
-  ctx.clearRect(0, 0, W, H);
 
   // Positive/negative fill zones (above = hyperglycaemia risk, below = hypo risk)
   ctx.fillStyle = 'rgba(245,158,11,0.05)';
@@ -5102,9 +5029,9 @@ function buildStatsText() {
   // Use exactly what is visible in the chart
   const vMin = viewMin ?? rawCGM[0].ts.getTime();
   const vMax = viewMax ?? rawCGM[rawCGM.length - 1].ts.getTime();
-  const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
-  const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
-  const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax; });
+  const visCGM   = rawCGM.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
+  const visBasal = rawBasal.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
+  const visBolus = rawBolus.filter(r => { const t = r.ts.getTime(); return t >= vMin && t <= vMax && !isExcluded(t); });
   if (visCGM.length === 0) return '';
 
   const glcs = visCGM.map(r => r.glc);
@@ -5897,260 +5824,59 @@ window.addEventListener('resize', () => {
   }, 120);
 });
 
-// Init slider fill on load + wire pointer-routing for dual range slider
-window.addEventListener('load', () => {
-  onMealWindowChange();
+// Init slider fill on first render
+window.addEventListener('load', onMealWindowChange);
 
-  // ── Dual-range slider: thumb routing + fill-bar pan ───────────────────────────
-  const wrap   = document.getElementById('mealSliderWrap');
-  const inpS   = document.getElementById('mealWindowStart');
-  const inpE   = document.getElementById('mealWindowEnd');
-  const panBar = document.getElementById('mealSliderPan');
+// ─── Dual-handle slider initialiser ─────────────────────────────────────────────
+// Wires up mousedown thumb-routing, pan-bar drag, and document mouseup/mousemove
+// for a slider whose elements share a common ID prefix (e.g. "mealWindow").
+function initDualSlider(prefix, onChange) {
+  const wrap   = document.getElementById(prefix + 'Wrap');
+  const inpS   = document.getElementById(prefix + 'Start');
+  const inpE   = document.getElementById(prefix + 'End');
+  const panBar = document.getElementById(prefix + 'Pan');
   if (!wrap || !inpS || !inpE || !panBar) return;
 
-  // THUMB THUMB ROUTING ─────────────────────────────────────────────────────────
-  // On mousedown on the wrapper, decide which thumb to activate based on
-  // proximity. The pan bar sits above the fill; clicks on the pan bar are
-  // handled separately (see below) and will not fall through to this handler
-  // because the pan bar calls e.stopPropagation().
-  wrap.addEventListener('mousedown', (e) => {
-    if (e.target === panBar) return; // handled by pan logic below
-    const rect     = wrap.getBoundingClientRect();
-    const ratio    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const clickVal = ratio * 24;
-    const s  = parseFloat(inpS.value);
-    const en = parseFloat(inpE.value);
-    const distS = Math.abs(clickVal - s);
-    const distE = Math.abs(clickVal - en);
-    const useStart = distS < distE || (distS === distE && clickVal <= (s + en) / 2);
-    const target = useStart ? inpS : inpE;
-    const other  = useStart ? inpE : inpS;
-    target.style.zIndex = '5';
-    other.style.zIndex  = '3';
-    target.style.pointerEvents = 'auto';
-    other.style.pointerEvents  = 'none';
-  });
-
-  wrap.addEventListener('touchstart', (e) => {
-    if (e.target === panBar) return;
-    const rect     = wrap.getBoundingClientRect();
-    const ratio    = Math.max(0, Math.min(1, (e.touches[0].clientX - rect.left) / rect.width));
-    const clickVal = ratio * 24;
-    const s  = parseFloat(inpS.value);
-    const en = parseFloat(inpE.value);
-    const distS = Math.abs(clickVal - s);
-    const distE = Math.abs(clickVal - en);
-    const useStart = distS < distE || (distS === distE && clickVal <= (s + en) / 2);
-    const target = useStart ? inpS : inpE;
-    const other  = useStart ? inpE : inpS;
-    target.style.zIndex = '5';
-    other.style.zIndex  = '3';
-    target.style.pointerEvents = 'auto';
-    other.style.pointerEvents  = 'none';
-  }, { passive: true });
-
-  document.addEventListener('mouseup',  () => {
-    inpS.style.pointerEvents = 'none';
-    inpE.style.pointerEvents = 'none';
-  });
-  document.addEventListener('touchend', () => {
-    inpS.style.pointerEvents = 'none';
-    inpE.style.pointerEvents = 'none';
-  });
-
-  // PAN LOGIC ───────────────────────────────────────────────────────────────────
-  // Dragging the teal fill bar shifts both handles by the same delta,
-  // clamping so neither goes out of [0, 24].
-  let panActive = false;
-  let panStartX = 0;
-  let panStartS = 0;
-  let panStartE = 0;
-
-  function panStart(clientX) {
-    panActive = true;
-    panStartX = clientX;
-    panStartS = parseFloat(inpS.value);
-    panStartE = parseFloat(inpE.value);
-    panBar.style.cursor = 'grabbing';
-  }
-
-  function panMove(clientX) {
-    if (!panActive) return;
-    const rect   = wrap.getBoundingClientRect();
-    const deltaPx = clientX - panStartX;
-    const deltaVal = (deltaPx / rect.width) * 24;
-    const width  = panStartE - panStartS;
-    let newS = panStartS + deltaVal;
-    let newE = panStartE + deltaVal;
-    // Clamp
-    if (newS < 0) { newS = 0; newE = width; }
-    if (newE > 24) { newE = 24; newS = 24 - width; }
-    inpS.value = Math.round(newS * 4) / 4;  // snap to 0.25 step
-    inpE.value = Math.round(newE * 4) / 4;
-    onMealWindowChange();
-  }
-
-  function panEnd() {
-    panActive = false;
-    panBar.style.cursor = 'grab';
-  }
-
-  panBar.addEventListener('mousedown', (e) => {
-    e.stopPropagation();
-    panStart(e.clientX);
-  });
-  panBar.addEventListener('touchstart', (e) => {
-    e.stopPropagation();
-    panStart(e.touches[0].clientX);
-  }, { passive: true });
-
-  document.addEventListener('mousemove', (e) => { if (panActive) panMove(e.clientX); });
-  document.addEventListener('touchmove', (e) => { if (panActive) panMove(e.touches[0].clientX); }, { passive: true });
-  document.addEventListener('mouseup',  panEnd);
-  document.addEventListener('touchend', panEnd);
-});
-
-// ─── Hypo Trace TOD slider ────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const wrap   = document.getElementById('hypoTraceSliderWrap');
-  const inpS   = document.getElementById('hypoTraceWindowStart');
-  const inpE   = document.getElementById('hypoTraceWindowEnd');
-  const panBar = document.getElementById('hypoTraceSliderPan');
-  if (!wrap || !inpS || !inpE || !panBar) return;
-
+  // Click on track → activate the nearest thumb
   wrap.addEventListener('mousedown', (e) => {
     if (e.target === panBar) return;
-    const rect = wrap.getBoundingClientRect();
-    const clickVal = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 24;
-    const s = parseFloat(inpS.value), en = parseFloat(inpE.value);
-    const useStart = Math.abs(clickVal - s) <= Math.abs(clickVal - en);
-    const target = useStart ? inpS : inpE, other = useStart ? inpE : inpS;
-    target.style.zIndex = '5'; other.style.zIndex = '3';
-    target.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
+    const clickVal = Math.max(0, Math.min(1, (e.clientX - wrap.getBoundingClientRect().left) / wrap.getBoundingClientRect().width)) * 24;
+    const useStart = Math.abs(clickVal - parseFloat(inpS.value)) <= Math.abs(clickVal - parseFloat(inpE.value));
+    const [active, other] = useStart ? [inpS, inpE] : [inpE, inpS];
+    active.style.zIndex = '5'; other.style.zIndex = '3';
+    active.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
   });
   document.addEventListener('mouseup', () => {
     inpS.style.pointerEvents = 'none'; inpE.style.pointerEvents = 'none';
   });
 
+  // Pan bar drag → shift entire window
   let panActive = false, panStartX = 0, panStartS = 0, panStartE = 0;
   panBar.addEventListener('mousedown', (e) => {
-    e.stopPropagation(); panActive = true; panStartX = e.clientX;
+    e.stopPropagation();
+    panActive = true; panStartX = e.clientX;
     panStartS = parseFloat(inpS.value); panStartE = parseFloat(inpE.value);
     panBar.style.cursor = 'grabbing';
   });
   document.addEventListener('mousemove', (e) => {
     if (!panActive) return;
-    const rect = wrap.getBoundingClientRect();
-    const delta = ((e.clientX - panStartX) / rect.width) * 24;
+    const delta = ((e.clientX - panStartX) / wrap.getBoundingClientRect().width) * 24;
     const w = panStartE - panStartS;
     let newS = panStartS + delta, newE = panStartE + delta;
     if (newS < 0) { newS = 0; newE = w; }
     if (newE > 24) { newE = 24; newS = 24 - w; }
     inpS.value = Math.round(newS * 4) / 4;
     inpE.value = Math.round(newE * 4) / 4;
-    onHypoTraceWindowChange();
+    onChange();
   });
   document.addEventListener('mouseup', () => { panActive = false; panBar.style.cursor = 'grab'; });
-});
+}
 
-// ─── Hypo Timing TOD slider (dual-handle, same pattern as meal window) ────────
 document.addEventListener('DOMContentLoaded', () => {
-  const wrap   = document.getElementById('hypoTimingSliderWrap');
-  const inpS   = document.getElementById('hypoTimingWindowStart');
-  const inpE   = document.getElementById('hypoTimingWindowEnd');
-  const panBar = document.getElementById('hypoTimingSliderPan');
-  if (!wrap || !inpS || !inpE || !panBar) return;
-
-  wrap.addEventListener('mousedown', (e) => {
-    if (e.target === panBar) return;
-    const rect  = wrap.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const clickVal = ratio * 24;
-    const s = parseFloat(inpS.value), en = parseFloat(inpE.value);
-    const useStart = Math.abs(clickVal - s) <= Math.abs(clickVal - en);
-    const target = useStart ? inpS : inpE;
-    const other  = useStart ? inpE : inpS;
-    target.style.zIndex = '5'; other.style.zIndex = '3';
-    target.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
-  });
-
-  document.addEventListener('mouseup', () => {
-    inpS.style.pointerEvents = 'none'; inpE.style.pointerEvents = 'none';
-  });
-
-  let panActive = false, panStartX = 0, panStartS = 0, panStartE = 0;
-  function panStart(clientX) {
-    panActive = true; panStartX = clientX;
-    panStartS = parseFloat(inpS.value); panStartE = parseFloat(inpE.value);
-    panBar.style.cursor = 'grabbing';
-  }
-  function panMove(clientX) {
-    if (!panActive) return;
-    const rect = wrap.getBoundingClientRect();
-    const deltaVal = ((clientX - panStartX) / rect.width) * 24;
-    const width = panStartE - panStartS;
-    let newS = panStartS + deltaVal, newE = panStartE + deltaVal;
-    if (newS < 0) { newS = 0; newE = width; }
-    if (newE > 24) { newE = 24; newS = 24 - width; }
-    inpS.value = Math.round(newS * 4) / 4;
-    inpE.value = Math.round(newE * 4) / 4;
-    onHypoTimingTODChange();
-  }
-  function panEnd() { panActive = false; panBar.style.cursor = 'grab'; }
-
-  panBar.addEventListener('mousedown', (e) => { e.stopPropagation(); panStart(e.clientX); });
-  document.addEventListener('mousemove', (e) => { if (panActive) panMove(e.clientX); });
-  document.addEventListener('mouseup', panEnd);
-});
-
-// ─── Correction Trace TOD slider (dual-handle, same pattern as meal window) ───
-document.addEventListener('DOMContentLoaded', () => {
-  const wrap   = document.getElementById('correctionSliderWrap');
-  const inpS   = document.getElementById('correctionWindowStart');
-  const inpE   = document.getElementById('correctionWindowEnd');
-  const panBar = document.getElementById('correctionSliderPan');
-  if (!wrap || !inpS || !inpE || !panBar) return;
-
-  wrap.addEventListener('mousedown', (e) => {
-    if (e.target === panBar) return;
-    const rect  = wrap.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const clickVal = ratio * 24;
-    const s = parseFloat(inpS.value), en = parseFloat(inpE.value);
-    const useStart = Math.abs(clickVal - s) <= Math.abs(clickVal - en);
-    const target = useStart ? inpS : inpE;
-    const other  = useStart ? inpE : inpS;
-    target.style.zIndex = '5'; other.style.zIndex = '3';
-    target.style.pointerEvents = 'auto'; other.style.pointerEvents = 'none';
-  });
-
-  document.addEventListener('mouseup', () => {
-    inpS.style.pointerEvents = 'none'; inpE.style.pointerEvents = 'none';
-  });
-
-  let panActive = false, panStartX = 0, panStartS = 0, panStartE = 0;
-  function panStart(clientX) {
-    panActive = true; panStartX = clientX;
-    panStartS = parseFloat(inpS.value); panStartE = parseFloat(inpE.value);
-    panBar.style.cursor = 'grabbing';
-  }
-  function panMove(clientX) {
-    if (!panActive) return;
-    const rect = wrap.getBoundingClientRect();
-    const deltaVal = ((clientX - panStartX) / rect.width) * 24;
-    const width = panStartE - panStartS;
-    let newS = panStartS + deltaVal, newE = panStartE + deltaVal;
-    if (newS < 0) { newS = 0; newE = width; }
-    if (newE > 24) { newE = 24; newS = 24 - width; }
-    inpS.value = Math.round(newS * 4) / 4;
-    inpE.value = Math.round(newE * 4) / 4;
-    onCorrectionWindowChange();
-  }
-  function panEnd() { panActive = false; panBar.style.cursor = 'grab'; }
-
-  panBar.addEventListener('mousedown', (e) => { e.stopPropagation(); panStart(e.clientX); });
-  document.addEventListener('mousemove', (e) => { if (panActive) panMove(e.clientX); });
-  document.addEventListener('mouseup', panEnd);
+  initDualSlider('mealWindow',       onMealWindowChange);
+  initDualSlider('hypoTraceWindow',  onHypoTraceWindowChange);
+  initDualSlider('hypoTimingWindow', onHypoTimingTODChange);
+  initDualSlider('correctionWindow', onCorrectionWindowChange);
 });
 
 // ─── Theme ────────────────────────────────────────────────────────────────────

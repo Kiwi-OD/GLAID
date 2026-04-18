@@ -5,7 +5,7 @@ Chat with your data and extract insights!
 
 Should work for most pumps but currently tailored for Tandem (see section [Hypo Treatment Detection](#hypo-treatment-detection)).
 
-![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta5-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
+![GLAID Dashboard](https://img.shields.io/badge/version-0.26.2--beta6-teal) ![No backend](https://img.shields.io/badge/backend-none-green)
 
 ---
 
@@ -75,7 +75,8 @@ The controls bar is **sticky** — it remains pinned to the top of the viewport 
 - **DIA** — duration of insulin action for IOB calculation (3–6 h, default 5 h)
 - **Age & Weight** — used to contextualise TDD/kg in the AI analysis
 - **Hypoglycaemia treatment size** — configurable carbohydrate dose (default 15 g) applied to all 0.05 U boluses
-- **Light / Dark theme toggle** — pill switch next to the logo; preference is persisted in `localStorage`
+- **Light / Dark theme toggle**
+- **Data exclusion zones** — hold Shift and drag across the main chart to mark a period as bad data. The zone is highlighted in red and all downstream calculations (statistics, hourly charts, trace panels) update immediately to exclude those readings. Shift+click a zone to remove it. Active zones are shown in the controls bar with a clear-all button. — pill switch next to the logo; preference is persisted in `localStorage`
 
 ---
 
@@ -205,6 +206,30 @@ All AI-generated analysis — including pattern summaries, insulin dosing commen
 ---
 
 ## Changelog
+
+### v0.26.2-beta6 (2026-04-17)
+
+**Data exclusion zones — Shift+drag on the main chart**
+- Hold **Shift and drag** across any region of the Glucose & Insulin chart to mark that period as excluded. A red-tinted overlay with dashed borders appears immediately to confirm the selection.
+- **Shift+click** an existing exclusion zone to remove it. Overlapping zones are merged automatically.
+- Excluded data is removed from all calculations and visualisations — CGM trace, statistics, hour-of-day charts, and all trace panels update immediately. Exclusions are applied at the raw-data filter level via a shared `isExcluded(t)` helper used across all 15 view-window filter expressions.
+- An **⛔ Excluded N** badge in the controls bar shows how many zones are active, with a **Clear all** button. The badge is hidden when no zones exist.
+- A **⇧ drag to exclude** hint in the chart legend makes the feature discoverable. The cursor changes to a crosshair when Shift is held.
+- Zones are session-scoped and reset on page reload.
+
+**Adjusted Basal — full circular wrap**
+- The rate-of-change correction loop now covers all 24 hours with modulo wrapping, so early morning hours (00:00–01:00) correctly receive correction contributions from the previous night's glucose trend. Previously hours 0 and 23 were excluded from the loop to avoid a boundary artefact.
+
+**Empty time window state for trace panels**
+- The Post-Hypoglycaemia Treatment Glucose Trace, Post-Correction Bolus Interstitial Glucose Trace, and Time Since Last Bolus histogram no longer disappear when the time window slider is moved to a period with no events. Instead the panel stays visible and displays a "no data in selected time window" message on the canvas, consistent with the Post-Prandial Interstitial Glucose Trace.
+
+**Code refactoring**
+- Extracted shared helpers: `makeCgmNear(sorted)`, `pctile(sorted, p)`, `setupCanvas(canvas, h)`, `computeTraceStats(traces, steps)`, `drawIQRAndMedian(...)`, `updateSliderWindow(prefix, rebuild)`, `initDualSlider(prefix, onChange)`.
+- Eliminated ~470 lines of duplicated boilerplate across the four trace functions and four slider implementations.
+- Normalised all slider element IDs to a consistent `*Window*` naming scheme.
+- Fixed IQR band opacity: the `drawIQRAndMedian` helper now uses `globalAlpha` instead of a broken `rgba` string conversion, restoring the intended semi-transparent fill.
+
+---
 
 ### v0.26.2-beta5 (2026-03-31)
 
